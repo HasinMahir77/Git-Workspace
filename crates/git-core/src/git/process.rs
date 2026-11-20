@@ -60,6 +60,42 @@ pub(crate) fn git(
     collect(directory, args, false)
 }
 
+/// Runs Git with `input` written to its stdin, for commands such as `git apply -`.
+pub(crate) fn git_with_input(
+    directory: &Path,
+    args: impl IntoIterator<Item = impl AsRef<OsStr>>,
+    input: &[u8],
+) -> Result<Vec<u8>, String> {
+    use io::Write;
+    let mut child = command(directory)
+        .args(args)
+        .stdin(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Could not start Git: {error}"))?;
+    let mut stdin = child.stdin.take().expect("Git stdin is piped");
+    let stderr = child.stderr.take().expect("Git stderr is piped");
+    let stderr = thread::spawn(move || capture(stderr));
+    let stdout = child.stdout.take().expect("Git stdout is piped");
+    let stdout = thread::spawn(move || capture(stdout));
+    // A Git that exits early closes the pipe; its error is read below.
+    let _ = stdin.write_all(input);
+    drop(stdin);
+    let status = child.wait().map_err(|error| error.to_string())?;
+    let stderr = stderr
+        .join()
+        .map_err(|_| "Could not read Git errors")?
+        .map_err(|error| error.to_string())?;
+    let stdout = stdout
+        .join()
+        .map_err(|_| "Could not read Git output")?
+        .map_err(|error| error.to_string())?;
+    if status.success() {
+        Ok(stdout)
+    } else {
+        Err(sanitize_output(&text(&stderr)))
+    }
+}
+
 pub(crate) fn git_allow_one(
     directory: &Path,
     args: impl IntoIterator<Item = impl AsRef<OsStr>>,
@@ -110,6 +146,18 @@ pub(crate) fn stream_git(
 ) -> Result<(), String> {
     let mut child_command = command(directory);
     child_command.args(args);
+    stream_command(child_command, "Git", execution)
+}
+
+/// Runs a Git command that could open an editor with `true` as the editor, so
+/// it accepts Git's prepared message. Hooks stay enabled.
+pub(crate) fn stream_git_without_editor(
+    directory: &Path,
+    args: &[&str],
+    execution: &Execution<'_>,
+) -> Result<(), String> {
+    let mut child_command = command(directory);
+    child_command.args(args).env("GIT_EDITOR", "true");
     stream_command(child_command, "Git", execution)
 }
 

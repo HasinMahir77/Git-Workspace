@@ -18,6 +18,16 @@ Open **Git Workspace** in the app launcher. If your shell sets up tools for a re
 
 Use the Repository, Branch, and sync controls in the top toolbar. Search your open repositories with **Ctrl+K**, open a local checkout with **Ctrl+O**, and open Settings with **Ctrl+,**. Theme, GitHub accounts, and Git environment diagnostics are in Settings.
 
+## Compare, merge, and recovery
+
+Open **Branches → Compare branches…** to compare the current branch with a local or remote branch. It shows the commits unique to each side and the changes since the merge base, without touching your checkout. From a comparison you can merge, rebase onto the other branch, or cherry-pick a commit it has. In History, **Cherry-pick onto…** applies a commit to another local branch. Remote branches in the branch menu check out as local branches that track them.
+
+Merge, Rebase, and Cherry-pick need a clean working tree. When Git stops, a bar above the work area lists unresolved files with **Mark resolved**, **Continue**, **Skip commit** (rebase and cherry-pick), and **Abort**. It reads Git's own state, so it survives a restart. Other branch changes are blocked until you finish or abort.
+
+## Stash and hunks
+
+**Stash changes…** in Changes stashes work, with an explicit **Include untracked files** option. **Restore** applies a stash with its staging and keeps it until you drop it. **Stage hunk** and **Unstage hunk** appear in the diff for text changes to tracked files. Untracked, binary, renamed, and conflicted files use the whole-file buttons.
+
 ## Sidebars
 
 Drag the divider beside Changes, History, or the Settings navigation to resize it. The toggle at the top of each sidebar folds or expands it. Git Workspace remembers each sidebar's width and folded state. With a divider focused, use the arrow keys to resize it.
@@ -56,4 +66,4 @@ The native smoke test uses the packaged binary, a temporary checkout, and a loca
 python3 tests/native_smoke.py src-tauri/target/release/git-workspace
 ```
 
-For headless runs, start the driver inside an Xvfb session. The smoke test checks the application through the real WebKit window and asserts the resulting Git state. Optional hook qualification takes a disposable Zenurture checkout with dependencies installed and a local bare remote.
+For headless runs, start the driver inside an Xvfb session. Run the app with an isolated `HOME` and `XDG_*` directories, because it reopens your saved repositories and the test expects a fresh profile. The smoke test checks the application through the real WebKit window and asserts the resulting Git state. It covers compare, cherry-pick, remote branch checkout, hunk staging, stash (including a conflicting restore), rebase abort, merge conflict recovery, skipping an empty cherry-pick, and the 850×580, 1024×768, and 1366×768 layouts. Optional hook qualification takes a disposable Zenurture checkout with dependencies installed and a local bare remote.

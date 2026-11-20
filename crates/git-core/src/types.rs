@@ -74,21 +74,129 @@ pub struct RepositoryInfo {
 }
 
 #[derive(Debug, Deserialize, TS)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum Operation {
-    Stage { id: String },
-    Unstage { id: String },
-    Commit { summary: String, body: String },
-    SwitchBranch { branch: String },
-    CreateBranch { branch: String },
-    Fetch { remote: String },
+    Stage {
+        id: String,
+    },
+    Unstage {
+        id: String,
+    },
+    Commit {
+        summary: String,
+        body: String,
+    },
+    SwitchBranch {
+        branch: String,
+    },
+    CreateBranch {
+        branch: String,
+    },
+    Fetch {
+        remote: String,
+    },
     Pull,
-    Push { target: PushTarget },
-    Publish { remote: String },
+    Merge {
+        other: String,
+        expected_id: String,
+    },
+    Rebase {
+        onto: String,
+        expected_id: String,
+    },
+    CherryPick {
+        commit: String,
+        destination: Option<String>,
+    },
+    CheckoutRemote {
+        remote_branch: String,
+    },
+    StashPush {
+        should_include_untracked: bool,
+    },
+    StashApply {
+        id: String,
+    },
+    StashDrop {
+        id: String,
+    },
+    StageHunk {
+        id: String,
+        index: u32,
+        header: String,
+    },
+    UnstageHunk {
+        id: String,
+        index: u32,
+        header: String,
+    },
+    ContinueIntegration,
+    AbortIntegration,
+    SkipIntegration,
+    Push {
+        target: PushTarget,
+    },
+    Publish {
+        remote: String,
+    },
 }
 
 #[derive(Debug, Serialize, TS)]
 pub struct ToolVersion {
     pub name: String,
     pub version: Option<String>,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct Comparison {
+    pub current: String,
+    pub current_id: String,
+    pub other: String,
+    pub other_id: String,
+    pub merge_base: Option<String>,
+    pub current_only: Vec<Commit>,
+    pub other_only: Vec<Commit>,
+    pub diff: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+pub struct BranchGroups {
+    pub local: Vec<String>,
+    pub remote: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum IntegrationKind {
+    Merge,
+    Rebase,
+    CherryPick,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct Recovery {
+    pub kind: Option<IntegrationKind>,
+    pub unmerged: Vec<ChangedFile>,
+}
+
+impl IntegrationKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Merge => "Merge",
+            Self::Rebase => "Rebase",
+            Self::CherryPick => "Cherry-pick",
+        }
+    }
+}
+
+#[derive(Debug, Serialize, TS)]
+pub struct StashEntry {
+    pub id: String,
+    pub message: String,
 }

@@ -4,11 +4,15 @@ import { git } from "../git/client";
 import type { Commit } from "../git/bindings";
 import { HISTORY_PAGE_SIZE } from "../git/workspace.constants";
 import { messageOf } from "../git/workspace.helpers";
+import { CherryPickOnto } from "./CherryPickOnto";
+import type { RunOperation } from "../git/workspace.types";
 import { DiffPanel } from "./DiffPanel";
 import { HISTORY } from "./sidebar.constants";
 import { WorkspaceSplit } from "./WorkspaceSplit";
 
-export function History({ repo, revision, tabs }: { repo: string; revision: number; tabs: ReactNode }) {
+export function History({ repo, revision, tabs, current, isBusy, isDirty, isPaused, run }: {
+  repo: string; revision: number; tabs: ReactNode; current: string | null; isBusy: boolean; isDirty: boolean; isPaused: boolean; run: RunOperation;
+}) {
   const [commits, setCommits] = useState<Commit[]>([]);
   const [selected, select] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -58,10 +62,11 @@ export function History({ repo, revision, tabs }: { repo: string; revision: numb
   }
 
   return (
-    <WorkspaceSplit config={HISTORY} label="Commits" tabs={tabs} preview={
+    <WorkspaceSplit config={HISTORY} label="Commits" tabs={tabs} preview={<>
+        {commit && !isPaused && <CherryPickOnto repo={repo} commit={commit} current={current} isBusy={isBusy} isDirty={isDirty} run={run} />}
         <DiffPanel title={commit?.summary} detail={id?.slice(0, 8)} isHistory
           patch={id && preview?.id === id ? preview.patch : null} error={id && preview?.id === id ? preview.error : undefined} />
-    }>
+    </>}>
       <div className="file-list">
         {error && <div role="alert" className="banner"><p>{error}</p></div>}
         {commits.length === 0 && !error && <div className="empty">{isLoading ? "Loading history" : "No commits yet"}</div>}

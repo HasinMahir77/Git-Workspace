@@ -6,4 +6,5 @@ export type BranchMenuProps = {
   isBusy: boolean;
   close: (shouldFocus?: boolean) => void;
   run: RunOperation;
+  compare: () => void;
 };

@@ -15,32 +15,14 @@ impl Repository {
             [
                 "log",
                 "-z",
-                "--format=%H%x00%an%x00%as%x00%s",
+                COMMIT_FORMAT,
                 &format!("--max-count={HISTORY_PAGE_SIZE}"),
                 &format!("--skip={offset}"),
                 "HEAD",
                 "--",
             ],
         )?;
-        let output = output.strip_suffix(&[0]).unwrap_or(&output);
-        if output.is_empty() {
-            return Ok(Vec::new());
-        }
-        let fields: Vec<_> = output.split(|byte| *byte == 0).collect();
-        fields
-            .chunks(4)
-            .map(|fields| {
-                let [id, author, date, summary] = fields else {
-                    return Err("Invalid Git history record".into());
-                };
-                Ok(Commit {
-                    id: text(id),
-                    author: text(author),
-                    date: text(date),
-                    summary: text(summary),
-                })
-            })
-            .collect()
+        parse_commits(&output)
     }
 
     pub fn commit_diff(&self, id: &str) -> Result<String, String> {
@@ -75,6 +57,7 @@ impl Repository {
         should_create: bool,
         execution: &Execution<'_>,
     ) -> Result<(), String> {
+        self.require_no_paused_operation()?;
         if should_create {
             if branch.starts_with('-') || branch.starts_with('@') {
                 return Err("Enter a valid branch name.".into());
@@ -94,4 +77,28 @@ impl Repository {
             Err("That local branch is no longer available.".into())
         }
     }
+}
+
+pub(crate) const COMMIT_FORMAT: &str = "--format=%H%x00%an%x00%as%x00%s";
+
+pub(crate) fn parse_commits(output: &[u8]) -> Result<Vec<Commit>, String> {
+    let output = output.strip_suffix(&[0]).unwrap_or(output);
+    if output.is_empty() {
+        return Ok(Vec::new());
+    }
+    let fields: Vec<_> = output.split(|byte| *byte == 0).collect();
+    fields
+        .chunks(4)
+        .map(|fields| {
+            let [id, author, date, summary] = fields else {
+                return Err("Invalid Git history record".into());
+            };
+            Ok(Commit {
+                id: text(id),
+                author: text(author),
+                date: text(date),
+                summary: text(summary),
+            })
+        })
+        .collect()
 }

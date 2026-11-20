@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::{path::Path, process::Command};
 use tempfile::TempDir;
 
@@ -54,4 +55,21 @@ pub fn install_hook(checkout: &Checkout, name: &str, body: &str) {
     let hook = directory.join(name);
     std::fs::write(&hook, format!("#!/bin/sh\n{body}\n")).unwrap();
     std::fs::set_permissions(hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+pub fn commit_file(checkout: &Checkout, path: &str, content: &str, message: &str) {
+    checkout.write(path, content);
+    checkout.git(&["add", path]);
+    checkout.git(&["commit", "-m", message]);
+}
+
+/// `main` and `feature` each hold one commit the other lacks, on top of a shared base.
+pub fn diverged_checkout() -> Checkout {
+    let checkout = Checkout::new();
+    commit_file(&checkout, "base.txt", "base\n", "base");
+    checkout.git(&["switch", "-c", "feature"]);
+    commit_file(&checkout, "feature.txt", "feature\n", "feature work");
+    checkout.git(&["switch", "main"]);
+    commit_file(&checkout, "main.txt", "main\n", "main work");
+    checkout
 }

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { git } from "../git/client";
 import { messageOf } from "../git/workspace.helpers";
+import { StashPanel } from "./StashPanel";
 import { DiffPanel } from "./DiffPanel";
 import { CHANGES } from "./sidebar.constants";
 import { WorkspaceSplit } from "./WorkspaceSplit";
@@ -132,10 +133,15 @@ export function Changes({ repo, status, revision, isBusy, draft, changeDraft, ru
       ) :
         <DiffPanel title={file ? (file.originalPath ? `${file.originalPath} → ${file.path}` : file.path) : undefined}
           isStaged={isStaged}
+          hunkAction={file && !file.hasConflict && !file.originalPath && (isStaged ? file.staged : file.unstaged) !== "?" ? {
+            label: isStaged ? "Unstage hunk" : "Stage hunk", isDisabled: isBusy,
+            run: (index, header) => void run({ type: isStaged ? "unstageHunk" : "stageHunk", id: file.id, index, header }, isStaged ? "Unstage hunk" : "Stage hunk"),
+          } : undefined}
           detail={file ? isStaged ? "Staged changes" : "Unstaged changes" : undefined}
           patch={preview?.key === key ? preview.patch : null} error={preview?.key === key ? preview.error : undefined} />
     }>
       <div className="file-list">
+        <StashPanel repo={repo} revision={revision} isBusy={isBusy} hasChanges={status.files.length > 0} run={run} />
         {status.files.length === 0 ? (
           <div className="empty"><Check size={22} /><h2>Working tree clean</h2></div>
         ) : (

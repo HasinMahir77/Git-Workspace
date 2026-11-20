@@ -1,13 +1,24 @@
 use git_gui_core::GitHubCli;
-use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf};
+use std::{
+    fs,
+    os::unix::fs::PermissionsExt,
+    path::PathBuf,
+    sync::{Mutex, MutexGuard},
+};
+
+// A script that is still open for writing in one test fails to execute in another
+// (ETXTBSY) when concurrent tests fork, so fixtures run one at a time.
+static SERIAL: Mutex<()> = Mutex::new(());
 
 struct CliFixture {
     directory: tempfile::TempDir,
+    _serial: MutexGuard<'static, ()>,
 }
 
 impl CliFixture {
     fn new() -> Self {
         let fixture = Self {
+            _serial: SERIAL.lock().unwrap_or_else(|error| error.into_inner()),
             directory: tempfile::tempdir().unwrap(),
         };
         let script = fixture.directory.path().join("gh");

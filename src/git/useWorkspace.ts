@@ -91,6 +91,7 @@ export function useWorkspace() {
       const result = await work((line) => setOutput((previous) => (previous + line).slice(-MAX_OUTPUT_LENGTH)));
       if (shouldShowOutput) {
         setOutput((previous) => previous || `${label} completed.\n`);
+        setHasOutputOpen(false);
       }
       return { result };
     } catch (reason: unknown) {
@@ -118,7 +119,7 @@ export function useWorkspace() {
 
   async function mutate(request: Operation, label: string) {
     if (!repo || isRunning.current) return false;
-    const canCancel = request.type !== "stage" && request.type !== "unstage";
+    const canCancel = !["stage", "unstage", "stageHunk", "unstageHunk"].includes(request.type);
     setCancelTarget(canCancel ? repo : null);
     const result = await run(label, (emit) => git.run(repo, request, emit), canCancel);
     setCancelTarget(null);

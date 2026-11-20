@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { AccountAvatar } from "./accounts/AccountAvatar";
 import { useGitHubAccounts } from "./accounts/useGitHubAccounts";
 import { BranchMenu } from "./components/BranchMenu";
+import { ComparePanel } from "./components/ComparePanel";
+import { RecoveryBar } from "./components/RecoveryBar";
 import { Changes } from "./components/Changes";
 import { History } from "./components/History";
 import { RepositoryPicker } from "./components/RepositoryPicker";
@@ -17,6 +19,7 @@ import type { DiffView } from "./git/diff-view.types";
 import { EMPTY_DRAFT, THEME_KEY } from "./git/workspace.constants";
 import { getTheme, messageOf, syncAction, upstreamLabel } from "./git/workspace.helpers";
 import type { DialogKind, Draft, View } from "./git/workspace.types";
+import { useRecovery } from "./git/useRecovery";
 import { useWorkspace } from "./git/useWorkspace";
 import { SettingsPage } from "./settings/SettingsPage";
 import type { SettingsSection } from "./settings/settings.types";
@@ -29,6 +32,7 @@ export function App() {
   const [isBranchOpen, setIsBranchOpen] = useState(false);
   const branchButton = useRef<HTMLButtonElement>(null);
   const [dialog, setDialog] = useState<DialogKind | null>(null);
+  const [isComparing, setIsComparing] = useState(false);
   const [view, setView] = useState<View>("changes");
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [theme, setTheme] = useState(() => getTheme(localStorage.getItem(THEME_KEY)));
@@ -36,6 +40,8 @@ export function App() {
   const outputBox = useRef<HTMLPreElement>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const repo = workspace.selected;
+  const recovery = useRecovery(repo?.id, workspace.revision);
+  const isPaused = recovery?.kind != null;
   const status = workspace.snapshot?.status;
   const sync = workspace.snapshot?.sync;
   const isBusy = Boolean(workspace.operation);
@@ -98,6 +104,7 @@ export function App() {
     if (repo?.id !== id) {
       workspace.select(id);
       setView("changes");
+      setIsComparing(false);
     }
     setIsPickerOpen(false);
     setIsBranchOpen(false);
@@ -161,8 +168,8 @@ export function App() {
                 </span>
                 <ChevronDown size={14} aria-hidden="true" />
               </button>
-              {isBranchOpen && <BranchMenu repo={repo.id} current={status?.branch ?? null} isBusy={isBusy}
-                close={closeBranchMenu} run={workspace.mutate} />}
+              {isBranchOpen && <BranchMenu repo={repo.id} current={status?.branch ?? null} isBusy={isBusy || isPaused}
+                close={closeBranchMenu} run={workspace.mutate} compare={() => setIsComparing(true)} />}
               </div>
               {action && <button className="toolbar-cell sync-control" disabled={isBusy} onClick={activateSync} aria-label={action.label}>
                 <SyncIcon size={17} aria-hidden="true" />
@@ -211,21 +218,33 @@ export function App() {
                   </div>
                 </>}
               </div>
-            ) : view === "history" ? (
-              <History key={repo.id} repo={repo.id} revision={workspace.revision} tabs={viewTabs} />
-            ) : status ? (
-              <Changes key={repo.id} repo={repo.id} status={status} revision={workspace.revision} isBusy={isBusy}
-                tabs={viewTabs} viewHistory={() => setView("history")} openTerminal={openTerminal}
-                draft={drafts[repo.id] ?? EMPTY_DRAFT} changeDraft={(draft) => setDrafts((current) => ({ ...current, [repo.id]: draft }))}
-                run={workspace.mutate} />
             ) : (
-              <div className="empty"><FolderGit2 size={25} /><h2>{workspace.error ? "Repository unavailable" : "Loading changes"}</h2></div>
+              <>
+                {recovery?.kind && <RecoveryBar recovery={{ ...recovery, kind: recovery.kind }} isBusy={isBusy} run={workspace.mutate} openTerminal={openTerminal} />}
+                {isComparing && <ComparePanel key={repo.id} repo={repo.id} current={status?.branch ?? null}
+                  upstream={status?.upstream ?? null} revision={workspace.revision}
+                  isBusy={isBusy} isDirty={Boolean(status?.files.length)} isPaused={isPaused} run={workspace.mutate}
+                  openChanges={() => { setView("changes"); setIsComparing(false); }} close={() => setIsComparing(false)} />}
+                <div className="workspace-view" hidden={isComparing}>
+                  {view === "history" ? (
+                    <History key={repo.id} repo={repo.id} revision={workspace.revision} tabs={viewTabs} current={status?.branch ?? null}
+                      isBusy={isBusy} isDirty={Boolean(status?.files.length)} isPaused={isPaused} run={workspace.mutate} />
+                  ) : status ? (
+                    <Changes key={repo.id} repo={repo.id} status={status} revision={workspace.revision} isBusy={isBusy}
+                      tabs={viewTabs} viewHistory={() => setView("history")} openTerminal={openTerminal}
+                      draft={drafts[repo.id] ?? EMPTY_DRAFT} changeDraft={(draft) => setDrafts((current) => ({ ...current, [repo.id]: draft }))}
+                      run={workspace.mutate} />
+                  ) : (
+                    <div className="empty"><FolderGit2 size={25} /><h2>{workspace.error ? "Repository unavailable" : "Loading changes"}</h2></div>
+                  )}
+                </div>
+              </>
             )}
             {(workspace.output || isBusy || workspace.hasOutputOpen) && (
               <section className="output-panel" aria-label="Git operation output">
                 <div className="row">
                   <button className="button subtle" aria-expanded={workspace.hasOutputOpen}
-                    onClick={() => workspace.setHasOutputOpen((value) => !value)}><SquareTerminal size={15} /> Operation output <ChevronDown size={13} /></button>
+                    onClick={() => workspace.setHasOutputOpen((value) => !value)}><SquareTerminal size={15} /> {workspace.output && !isBusy ? "Last output" : "Operation output"} <ChevronDown size={13} /></button>
                   {isBusy && <span className="row muted" role="status"><LoaderCircle size={14} className="spinning" />{workspace.operation} in progress</span>}
                   {workspace.canCancel && <button type="button" className="button subtle" disabled={workspace.isCancelling}
                     onClick={() => void workspace.cancel()}>{workspace.isCancelling ? "Cancelling…" : "Cancel operation"}</button>}

@@ -181,6 +181,7 @@ impl Repository {
     }
 
     pub fn pull(&self, execution: &Execution<'_>) -> Result<(), String> {
+        self.require_no_paused_operation()?;
         let status = self.status()?;
         let branch = status
             .branch

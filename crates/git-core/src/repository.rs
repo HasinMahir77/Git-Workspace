@@ -154,7 +154,7 @@ impl Repository {
         Ok(())
     }
 
-    fn changed_file(&self, id: &str) -> Result<(bool, ChangedFile), String> {
+    pub(crate) fn changed_file(&self, id: &str) -> Result<(bool, ChangedFile), String> {
         let status = self.status()?;
         let file = status
             .files
@@ -164,7 +164,7 @@ impl Repository {
         Ok((status.is_unborn, file))
     }
 
-    fn with_path(
+    pub(crate) fn with_path(
         &self,
         arguments: &[&str],
         file: &ChangedFile,

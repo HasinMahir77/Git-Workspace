@@ -1,6 +1,6 @@
 use git_gui_core::{
-    ChangedFile, Commit, GitHubAccount, GitHubAccounts, Operation, PushTarget, RepositoryInfo,
-    Status, SyncState, ToolVersion,
+    BranchGroups, ChangedFile, Commit, Comparison, GitHubAccount, GitHubAccounts, IntegrationKind,
+    Operation, PushTarget, Recovery, RepositoryInfo, StashEntry, Status, SyncState, ToolVersion,
 };
 use ts_rs::{Config, TS};
 
@@ -14,9 +14,14 @@ fn main() {
         Status::decl(&config),
         PushTarget::decl(&config),
         Commit::decl(&config),
+        Comparison::decl(&config),
+        BranchGroups::decl(&config),
         SyncState::decl(&config),
         RepositoryInfo::decl(&config),
         Operation::decl(&config),
+        IntegrationKind::decl(&config),
+        Recovery::decl(&config),
+        StashEntry::decl(&config),
         ToolVersion::decl(&config),
     ] {
         println!("export {declaration}");

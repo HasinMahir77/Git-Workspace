@@ -1,11 +1,13 @@
-import { Check, GitBranch, Plus, Search } from "lucide-react";
+import { Check, GitBranch, GitCompare, Plus, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { git } from "../git/client";
 import { messageOf } from "../git/workspace.helpers";
+import type { BranchGroups } from "../git/bindings";
+import { localNameFor } from "../git/recovery.helpers";
 import type { BranchMenuProps } from "./branch-menu.types";
 
-export function BranchMenu({ repo, current, isBusy, close, run }: BranchMenuProps) {
-  const [branches, setBranches] = useState<string[] | null>(null);
+export function BranchMenu({ repo, current, isBusy, close, run, compare }: BranchMenuProps) {
+  const [branches, setBranches] = useState<BranchGroups | null>(null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -14,7 +16,7 @@ export function BranchMenu({ repo, current, isBusy, close, run }: BranchMenuProp
 
   useEffect(() => {
     let isCurrent = true;
-    void git.branches(repo).then((result) => { if (isCurrent) setBranches(result); })
+    void git.branchGroups(repo).then((result) => { if (isCurrent) setBranches(result); })
       .catch((reason: unknown) => { if (isCurrent) setError(messageOf(reason)); });
     return () => { isCurrent = false; };
   }, [repo]);
@@ -34,7 +36,9 @@ export function BranchMenu({ repo, current, isBusy, close, run }: BranchMenuProp
     };
   }, [close]);
 
-  const matching = branches?.filter((branch) => branch.toLowerCase().includes(query.trim().toLowerCase()));
+  const isMatch = (branch: string) => branch.toLowerCase().includes(query.trim().toLowerCase());
+  const local = branches?.local.filter(isMatch);
+  const remote = branches?.remote.filter(isMatch);
   return (
     <div className="branch-menu" ref={menu} id="branch-menu" role="region" aria-label="Branch selection">
       <div className="branch-menu-heading"><strong>Branches</strong></div>
@@ -46,6 +50,9 @@ export function BranchMenu({ repo, current, isBusy, close, run }: BranchMenuProp
         </span>
         <button className="button" disabled={isBusy} onClick={() => setIsCreating((value) => !value)}>
           <Plus size={15} /> New branch
+        </button>
+        <button className="button" disabled={isBusy} onClick={() => { close(); compare(); }}>
+          <GitCompare size={15} /> Compare branches…
         </button>
       </div>
       {isCreating && (
@@ -61,12 +68,23 @@ export function BranchMenu({ repo, current, isBusy, close, run }: BranchMenuProp
       )}
       <div className="branch-list">
         {!branches && !error && <p className="muted">Loading branches…</p>}
-        {matching?.length === 0 && <p className="muted">No matching local branches</p>}
-        {matching?.map((branch) => (
+        {local?.length === 0 && remote?.length === 0 && <p className="muted">No matching branches</p>}
+        {local && local.length > 0 && <h3 className="branch-group">Local</h3>}
+        {local?.map((branch) => (
           <button className="branch-item" key={branch} disabled={isBusy} aria-current={branch === current ? "true" : undefined}
             onClick={() => { if (branch !== current) void run({ type: "switchBranch", branch }, "Switch branch"); close(); }}>
             {branch === current ? <Check size={15} aria-hidden="true" /> : <GitBranch size={15} aria-hidden="true" />}
             <span className="truncate">{branch}</span>
+          </button>
+        ))}
+        {remote && remote.length > 0 && <h3 className="branch-group">Remote</h3>}
+        {remote?.map((branch) => (
+          <button className="branch-item" key={branch} disabled={isBusy}
+            title={`Creates local branch ${localNameFor(branch)} tracking ${branch}`}
+            onClick={() => { void run({ type: "checkoutRemote", remoteBranch: branch }, "Check out remote branch"); close(); }}>
+            <GitBranch size={15} aria-hidden="true" />
+            <span className="truncate">{branch}</span>
+            <small className="muted truncate">{branches?.local.includes(localNameFor(branch)) ? "use local" : `new ${localNameFor(branch)}`}</small>
           </button>
         ))}
       </div>

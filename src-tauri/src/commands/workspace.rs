@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use git_gui_core::{Commit, Repository, RepositoryInfo, Status, SyncState};
+use git_gui_core::{
+    BranchGroups, Commit, Comparison, Recovery, Repository, RepositoryInfo, StashEntry, Status,
+    SyncState,
+};
 use tauri::State;
 
 use crate::{commands::blocking, repositories::Repositories};
@@ -67,4 +70,41 @@ pub async fn get_commit_diff(
 ) -> Result<String, String> {
     let entry = state.get(&repo)?;
     blocking(move || entry.repository.commit_diff(&commit)).await
+}
+
+#[tauri::command]
+pub async fn compare_branches(
+    repo: String,
+    other: String,
+    state: State<'_, Repositories>,
+) -> Result<Comparison, String> {
+    let entry = state.get(&repo)?;
+    blocking(move || entry.repository.compare(&other)).await
+}
+
+#[tauri::command]
+pub async fn get_branch_groups(
+    repo: String,
+    state: State<'_, Repositories>,
+) -> Result<BranchGroups, String> {
+    let entry = state.get(&repo)?;
+    blocking(move || entry.repository.branch_groups()).await
+}
+
+#[tauri::command]
+pub async fn get_recovery(
+    repo: String,
+    state: State<'_, Repositories>,
+) -> Result<Recovery, String> {
+    let entry = state.get(&repo)?;
+    blocking(move || entry.repository.recovery()).await
+}
+
+#[tauri::command]
+pub async fn get_stashes(
+    repo: String,
+    state: State<'_, Repositories>,
+) -> Result<Vec<StashEntry>, String> {
+    let entry = state.get(&repo)?;
+    blocking(move || entry.repository.stashes()).await
 }

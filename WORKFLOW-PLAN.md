@@ -57,7 +57,7 @@ First prove a stash round trip and a single hunk staged from a file with two ind
 
 ## Completion
 
-- [ ] Task 1. Compare and compact workspace
-- [ ] Task 2. Merge and conflict recovery
-- [ ] Task 3. Rebase, cherry-pick, and remote checkout
-- [ ] Task 4. Stash and hunk staging
+- [x] Task 1. Compare and compact workspace
+- [x] Task 2. Merge and conflict recovery
+- [x] Task 3. Rebase, cherry-pick, and remote checkout
+- [x] Task 4. Stash and hunk staging
