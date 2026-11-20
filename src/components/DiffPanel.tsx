@@ -1,5 +1,6 @@
 import { FileDiff, GitCommitHorizontal } from "lucide-react";
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
+import { DiffViewContext } from "../git/DiffViewContext";
 import { splitDiff } from "../git/diff.helpers";
 import type { Props } from "./diff-panel.types";
 import type { DiffLine } from "../git/diff.types";
@@ -14,6 +15,7 @@ function Cell({ line }: { line: DiffLine | null }) {
 }
 
 export function DiffPanel({ title, detail, patch, error, isHistory = false, isStaged = false }: Props) {
+  const diffView = useContext(DiffViewContext);
   const rows = useMemo(() => patch ? splitDiff(patch).filter((row) => (
     !("meta" in row) || !/^(?:index |--- |\+\+\+ )/.test(row.meta) && (isHistory || !row.meta.startsWith("diff --git "))
   )) : [], [patch, isHistory]);
@@ -30,11 +32,15 @@ export function DiffPanel({ title, detail, patch, error, isHistory = false, isSt
       )}
       {rows.length > 0 ? (
         <div className="diff-scroll" tabIndex={0}>
-          <div className="diff-sides">
+          {diffView === "split" && <div className="diff-sides">
             <span>{isHistory ? "Before commit" : isStaged ? "HEAD" : "Index"}</span>
             <span>{isHistory ? "After commit" : isStaged ? "Index" : "Working tree"}</span>
-          </div>
-          {rows.map((row, index) => "meta" in row ? (
+          </div>}
+          {diffView === "unified" ? (
+            <pre className="unified-diff">{patch?.split("\n").map((line, index) => (
+              <span className={line.startsWith("+") && !line.startsWith("+++") ? "addition" : line.startsWith("-") && !line.startsWith("---") ? "deletion" : ""} key={index}>{line}{"\n"}</span>
+            ))}</pre>
+          ) : rows.map((row, index) => "meta" in row ? (
             <div className="diff-meta" key={index}>{row.meta}</div>
           ) : (
             <div className="diff-line" key={index}><Cell line={row.left} /><Cell line={row.right} /></div>

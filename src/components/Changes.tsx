@@ -1,5 +1,6 @@
 import { Check, GitCommitHorizontal, Minus, Plus, SquareTerminal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { MouseEvent } from "react";
 import { git } from "../git/client";
 import { messageOf } from "../git/workspace.helpers";
 import { DiffPanel } from "./DiffPanel";
@@ -8,25 +9,38 @@ import { WorkspaceSplit } from "./WorkspaceSplit";
 import type { FileGroupProps, Props, Selection } from "./changes.types";
 import { FILE_STATES } from "./changes.constants";
 
-function FileGroup({ files, isStaged, selected, select, isBusy, run }: FileGroupProps) {
+function FileGroup({ files, isStaged, selectedIds, select, selectAll, isBusy, run }: FileGroupProps) {
   const action = isStaged ? "Unstage" : "Stage";
   const Icon = isStaged ? Minus : Plus;
   return (
     <section aria-label={isStaged ? "Staged files" : "Unstaged files"}>
       <div className="group-heading">
+        <button className="button icon subtle" disabled={isBusy || selectedIds.length === 0} title={`${action} selected files`}
+          aria-label={`${action} selected files`} onClick={() => void (async () => {
+            for (const id of selectedIds.filter((id) => files.some((file) => file.id === id && !file.hasConflict))) {
+              if (!await run({ type: isStaged ? "unstage" : "stage", id }, action)) break;
+            }
+          })()}><Icon size={15} /></button>
         <strong>{isStaged ? "Staged" : "Unstaged"}</strong>
         <span className="count">{files.length}</span>
       </div>
+      <div role="group" aria-label={isStaged ? "Staged file list" : "Unstaged file list"}
+        onKeyDown={(event) => {
+          if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "a") {
+            event.preventDefault();
+            selectAll();
+          }
+        }}>
       {files.map((file) => {
         const state = isStaged ? file.staged : file.unstaged;
-        const isSelected = selected?.id === file.id && selected.isStaged === isStaged;
+        const isSelected = selectedIds.includes(file.id);
         const slash = file.path.lastIndexOf("/");
         const fileName = file.path.slice(slash + 1);
         const directory = slash < 0 ? null : file.path.slice(0, slash + 1);
         const stateLabel = file.hasConflict ? "Conflicted" : FILE_STATES[state] ?? state;
         return (
           <div className={`file-row ${isSelected ? "selected" : ""}`} key={file.id}>
-            <button className="file-select row" aria-pressed={isSelected} title={file.path} onClick={() => select({ id: file.id, isStaged })}>
+            <button className="file-select row" aria-pressed={isSelected} title={file.path} onClick={(event) => select({ id: file.id, isStaged }, event)}>
               <span className={`file-status ${state === "D" ? "deleted" : state === "A" || state === "?" ? "added" : ""}`} title={stateLabel} aria-label={stateLabel}>
                 {file.hasConflict ? "!" : state}
               </span>
@@ -42,16 +56,47 @@ function FileGroup({ files, isStaged, selected, select, isBusy, run }: FileGroup
           </div>
         );
       })}
+      </div>
     </section>
   );
 }
 
 export function Changes({ repo, status, revision, isBusy, draft, changeDraft, run, tabs, viewHistory, openTerminal }: Props) {
-  const [selected, select] = useState<Selection | null>(null);
+  const [selected, setSelected] = useState<Selection | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const anchor = useRef<Selection | null>(null);
   const [preview, setPreview] = useState<{ key: string; patch: string; error?: string } | null>(null);
   const staged = status.files.filter((file) => file.staged !== "." && !file.hasConflict);
   const unstaged = status.files.filter((file) => file.unstaged !== "." || file.hasConflict);
   const hasConflict = status.files.some((file) => file.hasConflict);
+  function select(selection: Selection, event: MouseEvent<HTMLButtonElement>) {
+    const files = selection.isStaged ? staged : unstaged;
+    const inSameGroup = selected?.isStaged === selection.isStaged;
+    const start = anchor.current?.isStaged === selection.isStaged ? files.findIndex((file) => file.id === anchor.current?.id) : -1;
+    const end = files.findIndex((file) => file.id === selection.id);
+    if (event.shiftKey && start >= 0 && end >= 0) {
+      const range = files.slice(Math.min(start, end), Math.max(start, end) + 1).map((file) => file.id);
+      setSelectedIds(range);
+    } else if (event.ctrlKey || event.metaKey) {
+      setSelectedIds((previous) => {
+        const group = inSameGroup ? previous : [];
+        return group.includes(selection.id) ? group.filter((id) => id !== selection.id) : [...group, selection.id];
+      });
+      anchor.current = selection;
+    } else {
+      setSelectedIds([selection.id]);
+      anchor.current = selection;
+    }
+    setSelected(selection);
+  }
+  function selectAll(isStaged: boolean) {
+    const files = isStaged ? staged : unstaged;
+    if (!files.length) return;
+    setSelectedIds(files.map((file) => file.id));
+    const first = files[0];
+    if (first) { const selection = { id: first.id, isStaged }; setSelected(selection); anchor.current = selection; }
+  }
+
   const selectedFile = (selected?.isStaged ? staged : unstaged).find((file) => file.id === selected?.id);
   const firstFile = unstaged[0] ?? staged[0];
   const file = selectedFile ?? firstFile;
@@ -95,8 +140,8 @@ export function Changes({ repo, status, revision, isBusy, draft, changeDraft, ru
           <div className="empty"><Check size={22} /><h2>Working tree clean</h2></div>
         ) : (
           <>
-            <FileGroup files={unstaged} isStaged={false} selected={id ? { id, isStaged } : null} select={select} isBusy={isBusy} run={run} />
-            <FileGroup files={staged} isStaged selected={id ? { id, isStaged } : null} select={select} isBusy={isBusy} run={run} />
+            <FileGroup files={unstaged} isStaged={false} selectedIds={selected?.isStaged === false ? selectedIds : []} select={select} selectAll={() => selectAll(false)} isBusy={isBusy} run={run} />
+            <FileGroup files={staged} isStaged selectedIds={selected?.isStaged === true ? selectedIds : []} select={select} selectAll={() => selectAll(true)} isBusy={isBusy} run={run} />
           </>
         )}
       </div>
@@ -112,12 +157,12 @@ export function Changes({ repo, status, revision, isBusy, draft, changeDraft, ru
           <span className="spacer" />
           <small>{staged.length} staged</small>
         </div>
-        <label>Summary
-          <input className="field" name="commit-summary" autoComplete="off" value={draft.summary} disabled={isBusy}
+        <label><span className="sr-only">Summary</span>
+          <input className="field" name="commit-summary" placeholder="Summary" autoComplete="off" value={draft.summary} disabled={isBusy}
             onChange={(event) => changeDraft({ ...draft, summary: event.target.value })} />
         </label>
-        <label>Description <span className="sr-only">(optional)</span>
-          <textarea className="field" name="commit-body" rows={2} value={draft.body} disabled={isBusy}
+        <label><span className="sr-only">Description (optional)</span>
+          <textarea className="field" name="commit-body" placeholder="Description" rows={2} value={draft.body} disabled={isBusy}
             onChange={(event) => changeDraft({ ...draft, body: event.target.value })} />
         </label>
         {hasConflict && <small>Resolve conflicts in your editor or terminal.</small>}

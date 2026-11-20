@@ -5,6 +5,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { AccountAvatar } from "./accounts/AccountAvatar";
 import { useGitHubAccounts } from "./accounts/useGitHubAccounts";
+import { BranchMenu } from "./components/BranchMenu";
 import { Changes } from "./components/Changes";
 import { History } from "./components/History";
 import { RepositoryPicker } from "./components/RepositoryPicker";
@@ -13,6 +14,9 @@ import { SidebarDivider, SidebarToggle } from "./components/SidebarControls";
 import { useSidebar } from "./components/useSidebar";
 import { WorkspaceDialog } from "./components/WorkspaceDialog";
 import { git } from "./git/client";
+import { DiffViewContext } from "./git/DiffViewContext";
+import { DIFF_VIEW_KEY } from "./git/diff-view.constants";
+import type { DiffView } from "./git/diff-view.types";
 import { EMPTY_DRAFT, THEME_KEY } from "./git/workspace.constants";
 import { getTheme, messageOf, syncAction, upstreamLabel } from "./git/workspace.helpers";
 import type { DialogKind, Draft, View } from "./git/workspace.types";
@@ -26,10 +30,13 @@ export function App() {
   const accounts = useGitHubAccounts();
   const [settings, setSettings] = useState<SettingsSection | null>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isBranchOpen, setIsBranchOpen] = useState(false);
+  const branchButton = useRef<HTMLButtonElement>(null);
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const [view, setView] = useState<View>("changes");
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [theme, setTheme] = useState(() => getTheme(localStorage.getItem(THEME_KEY)));
+  const [diffView, setDiffView] = useState<DiffView>(() => localStorage.getItem(DIFF_VIEW_KEY) === "unified" ? "unified" : "split");
   const outputBox = useRef<HTMLPreElement>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const repo = workspace.selected;
@@ -44,6 +51,8 @@ export function App() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
+  useEffect(() => { localStorage.setItem(DIFF_VIEW_KEY, diffView); }, [diffView]);
+
   useEffect(() => {
     const output = outputBox.current;
     if (output) output.scrollTop = output.scrollHeight;
@@ -56,7 +65,7 @@ export function App() {
         closeSettings();
         return;
       }
-      if (!event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) return;
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
       if (event.key === ",") {
         event.preventDefault();
         setSettings("appearance");
@@ -77,9 +86,15 @@ export function App() {
     requestAnimationFrame(() => settingsButton.current?.focus());
   }
 
+  function closeBranchMenu(shouldFocus = false) {
+    setIsBranchOpen(false);
+    if (shouldFocus) branchButton.current?.focus();
+  }
+
   function showDialog(kind: DialogKind) {
     workspace.setError("");
     setIsPickerOpen(false);
+    setIsBranchOpen(false);
     setDialog(kind);
   }
 
@@ -89,6 +104,7 @@ export function App() {
       setView("changes");
     }
     setIsPickerOpen(false);
+    setIsBranchOpen(false);
   }
 
   function openTerminal() {
@@ -124,11 +140,10 @@ export function App() {
   );
 
   return (
-    <div className="app-frame">
+    <DiffViewContext.Provider value={diffView}><div className="app-frame">
       <div className="workspace-page" hidden={settings !== null}>
         <header className="workspace-bar" aria-label="Workspace toolbar">
-          <SidebarToggle sidebar={sidebar} />
-          <h1 className="repository-heading truncate">
+          <h1 className={`repository-heading truncate${sidebar.isCollapsed ? " repository-heading-collapsed" : ""}`} style={sidebar.isCollapsed ? undefined : { width: sidebar.layout.gridTemplateColumns?.toString().split(" 8px ")[0] }}>
             <button className="toolbar-cell repository-control" aria-label="Switch repository" title="Switch repository (Ctrl+K)"
               onClick={() => setIsPickerOpen(true)} disabled={isRestoring} aria-haspopup="dialog">
               <FolderGit2 size={18} aria-hidden="true" />
@@ -138,8 +153,9 @@ export function App() {
           </h1>
           {repo && (
             <>
-              <button className="toolbar-cell branch-control" aria-label="Branches" title={hasBranch && status ? upstreamLabel(status, sync ?? null) : branch}
-                disabled={isBusy || !status} onClick={() => showDialog("branches")} aria-haspopup="dialog">
+              <div className="branch-anchor">
+              <button ref={branchButton} className="toolbar-cell branch-control" aria-label="Branches" title={hasBranch && status ? upstreamLabel(status, sync ?? null) : branch}
+                disabled={isBusy || !status} onClick={() => setIsBranchOpen((value) => !value)} aria-expanded={isBranchOpen} aria-controls="branch-menu">
                 <GitBranch size={17} aria-hidden="true" />
                 <span className="toolbar-text truncate">
                   <small className="truncate">{status?.upstream ? upstreamLabel(status, sync ?? null) : "Branch"}</small>
@@ -147,6 +163,9 @@ export function App() {
                 </span>
                 <ChevronDown size={14} aria-hidden="true" />
               </button>
+              {isBranchOpen && <BranchMenu repo={repo.id} current={status?.branch ?? null} isBusy={isBusy}
+                close={closeBranchMenu} run={workspace.mutate} />}
+              </div>
               {action && <button className="toolbar-cell sync-control" disabled={isBusy} onClick={activateSync} aria-label={action.label}>
                 <SyncIcon size={17} aria-hidden="true" />
                 <span className="toolbar-text truncate"><strong>{action.label}</strong>
@@ -176,12 +195,13 @@ export function App() {
         </header>
         <div className="shell" style={sidebar.layout}>
           <aside className="rail" aria-label="Repositories">
-            <div className="rail-content" id={sidebar.panelId} hidden={sidebar.isCollapsed}>
-              <div className="rail-heading">
-                <strong>Repositories</strong>
+            <div className="rail-heading">
+                {!sidebar.isCollapsed && <strong className="spacer">Repositories</strong>}
                 <button className="button icon subtle" aria-label="Open a repository folder" title="Open repository (Ctrl+O)"
-                  disabled={isBusy || isRestoring} onClick={() => showDialog("open")}><FolderOpen size={16} /></button>
-              </div>
+                  disabled={isBusy || isRestoring} onClick={() => showDialog("open")} hidden={sidebar.isCollapsed}><FolderOpen size={16} /></button>
+                <SidebarToggle sidebar={sidebar} />
+            </div>
+            <div className="rail-content" id={sidebar.panelId} hidden={sidebar.isCollapsed}>
               <nav className="rail-list" aria-label="Open repositories">
                 {workspace.entries.map((entry) => (
                   <button className="repo row" key={entry.id} aria-current={entry.id === repo?.id ? "true" : undefined} title={entry.path}
@@ -238,7 +258,7 @@ export function App() {
         </div>
       </div>
       {settings && <SettingsPage section={settings} selectSection={setSettings} close={closeSettings}
-        theme={theme} changeTheme={setTheme} repositoryId={repo?.id} accountState={accounts.state}
+        theme={theme} changeTheme={setTheme} diffView={diffView} changeDiffView={setDiffView} repositoryId={repo?.id} accountState={accounts.state}
         accountError={accounts.error} refreshAccounts={accounts.refresh} isWorkspaceBusy={isBusy} />}
       {isPickerOpen && <RepositoryPicker entries={workspace.entries} selected={repo?.id} choose={chooseRepo}
         open={() => showDialog("open")} clone={() => showDialog("clone")} close={() => setIsPickerOpen(false)} isBusy={isBusy} />}
@@ -246,6 +266,6 @@ export function App() {
         <WorkspaceDialog key={dialog} kind={dialog} repo={repo?.id} status={status} sync={sync} error={workspace.error}
           close={() => setDialog(null)} open={workspace.open} clone={workspace.clone} isBusy={isBusy} run={workspace.mutate} />
       )}
-    </div>
+    </div></DiffViewContext.Provider>
   );
 }

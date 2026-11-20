@@ -9,7 +9,7 @@ import { SETTINGS_SECTIONS, THEME_OPTIONS } from "./settings.constants";
 import type { SettingsProps } from "./settings.types";
 
 export function SettingsPage({
-  section, selectSection, close, theme, changeTheme, repositoryId, accountState,
+  section, selectSection, close, theme, changeTheme, diffView, changeDiffView, repositoryId, accountState,
   accountError, refreshAccounts, isWorkspaceBusy,
 }: SettingsProps) {
   const title = useRef<HTMLHeadingElement>(null);
@@ -47,6 +47,11 @@ export function SettingsPage({
                     </label>
                   ))}
                 </div>
+              </fieldset>
+              <fieldset className="diff-view-options">
+                <legend>Diff view</legend>
+                <label><input type="radio" name="diff-view" checked={diffView === "split"} onChange={() => changeDiffView("split")} /> Side by side</label>
+                <label><input type="radio" name="diff-view" checked={diffView === "unified"} onChange={() => changeDiffView("unified")} /> Unified</label>
               </fieldset>
             </section>
           )}

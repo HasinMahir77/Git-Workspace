@@ -1,5 +1,5 @@
-import { FolderOpen, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { FolderOpen } from "lucide-react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { git } from "../git/client";
 import { messageOf } from "../git/workspace.helpers";
@@ -7,22 +7,12 @@ import type { Props } from "./workspace-dialog.types";
 
 import { Modal } from "./Modal";
 
-export function WorkspaceDialog({ kind, repo, status, sync, isBusy, error, close, open, clone, run }: Props) {
+export function WorkspaceDialog({ kind, status, sync, isBusy, error, close, open, clone, run }: Props) {
   const [path, setPath] = useState("");
   const [source, setSource] = useState("");
   const [name, setName] = useState("");
   const [remote, setRemote] = useState(sync?.fetchRemote ?? "");
-  const [branches, setBranches] = useState<string[] | null>(null);
   const [localError, setLocalError] = useState("");
-
-  useEffect(() => {
-    let isCurrent = true;
-    const onError = (reason: unknown) => { if (isCurrent) setLocalError(messageOf(reason)); };
-    if (kind === "branches" && repo) {
-      void git.branches(repo).then((result) => { if (isCurrent) setBranches(result); }).catch(onError);
-    }
-    return () => { isCurrent = false; };
-  }, [kind, repo]);
 
   async function browse() {
     try {
@@ -35,37 +25,6 @@ export function WorkspaceDialog({ kind, repo, status, sync, isBusy, error, close
 
   const feedback = (localError || error) && <p role="alert" className="dialog-error">{localError || error}</p>;
   const cancel = <button type="button" className="button" onClick={close}>Cancel</button>;
-
-  if (kind === "branches") {
-    const switchable = branches?.filter((branch) => branch !== status?.branch) ?? [];
-    return (
-      <Modal title="Branches" close={close}>
-        <div className="dialog-form">
-          {feedback}
-          <p className="muted">{status?.branch ? `Current branch: ${status.branch}` : "Detached HEAD"}</p>
-          {!branches && !localError && <p className="muted">Loading branches…</p>}
-          {branches && switchable.length === 0 && <p className="muted">No other local branches.</p>}
-          {switchable.length > 0 && (
-            <div className="branch-options">{switchable.map((branch) => (
-              <button className="button" key={branch} disabled={isBusy} onClick={() => {
-                close();
-                void run({ type: "switchBranch", branch }, "Switch branch");
-              }}>{branch}</button>
-            ))}</div>
-          )}
-          <form className="row" onSubmit={(event) => {
-            event.preventDefault();
-            close();
-            void run({ type: "createBranch", branch: name.trim() }, "Create branch");
-          }}>
-            <input className="field" aria-label="New branch name" placeholder="New branch name" value={name}
-              onChange={(event) => setName(event.target.value)} required />
-            <button className="button primary" disabled={isBusy || !name.trim()}><Plus size={15} /> Create branch</button>
-          </form>
-        </div>
-      </Modal>
-    );
-  }
 
   if (kind === "push") {
     const target = sync?.pushTarget;

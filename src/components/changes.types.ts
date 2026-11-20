@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import type { ChangedFile, Status } from "../git/bindings";
 import type { Draft, RunOperation } from "../git/workspace.types";
 
@@ -19,8 +19,9 @@ export type Props = {
 export type FileGroupProps = {
   files: ChangedFile[];
   isStaged: boolean;
-  selected: Selection | null;
-  select: (selection: Selection) => void;
+  selectedIds: string[];
+  select: (selection: Selection, event: MouseEvent<HTMLButtonElement>) => void;
+  selectAll: () => void;
   isBusy: boolean;
   run: RunOperation;
 };

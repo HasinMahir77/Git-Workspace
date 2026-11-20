@@ -148,6 +148,10 @@ def verify_sidebar(desktop, label, panel_selector):
     eventually(lambda: desktop.bounds(panel_selector)["width"] < 50)
     desktop.click(f"button[aria-label='Expand {label} sidebar']")
     eventually(lambda: desktop.bounds(panel_selector)["width"] == resized)
+    eventually(lambda: desktop.send("POST", "/execute/sync", {
+        "script": "return document.getAnimations().every(animation => animation.playState !== 'running');",
+        "args": [],
+    }))
     return resized
 
 
@@ -159,12 +163,20 @@ def qualify_sidebars(desktop):
     desktop.click("button[aria-label='History']")
     verify_sidebar(desktop, "History", ".file-panel")
     desktop.click("button[aria-label='Collapse History sidebar']")
-    desktop.click(".view-tab:first-child")
+    eventually(lambda: desktop.bounds(".file-panel")["width"] == 42)
+    bounds = desktop.bounds(".file-panel .view-tab[aria-label='Changes']")
+    x, y = round(bounds["x"] + bounds["width"] / 2), round(bounds["y"] + bounds["height"] / 2)
+    desktop.send("POST", "/actions", {"actions": [{"type": "pointer", "id": "mouse", "parameters": {"pointerType": "mouse"}, "actions": [
+        {"type": "pointerMove", "origin": "viewport", "x": x, "y": y, "duration": 0},
+        {"type": "pointerDown", "button": 0}, {"type": "pointerUp", "button": 0},
+    ]}]})
+    desktop.send("DELETE", "/actions")
     eventually(lambda: desktop.bounds(".file-panel")["width"] == resized)
     desktop.click("button[aria-label='History']")
-    eventually(lambda: desktop.bounds(".file-panel")["width"] < 50)
+    eventually(lambda: desktop.bounds(".file-panel")["width"] == 42)
     desktop.click("button[aria-label='Expand History sidebar']")
-    desktop.click(".view-tab:first-child")
+    eventually(lambda: desktop.bounds(".file-panel")["width"] > 190)
+    desktop.click(".file-panel .view-tab[aria-label='Changes']")
     print("Sidebar smoke passed: mouse resize, fold and restore for all three sidebars.")
 
 
@@ -227,7 +239,8 @@ def run(desktop, root, evidence):
     desktop.contains(".diff-scroll", "Notes from the desktop")
 
     desktop.click("button[aria-label='Branches']")
-    desktop.enter("dialog[open] input", "release-check")
+    desktop.button("New branch")
+    desktop.enter("input[aria-label='New branch name']", "release-check")
     desktop.button("Create branch")
     desktop.contains(".branch-control", "release-check")
     desktop.click("button[aria-label='Branches']")
