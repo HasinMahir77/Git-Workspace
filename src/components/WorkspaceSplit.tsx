@@ -1,16 +1,14 @@
 import type { ReactNode } from "react";
 import { SidebarDivider, SidebarToggle } from "./SidebarControls";
-import type { SidebarConfig } from "./sidebar.types";
-import { useSidebar } from "./useSidebar";
+import type { Sidebar } from "./sidebar.types";
 
-export function WorkspaceSplit({ config, label, children, preview, tabs }: {
-  config: SidebarConfig;
+export function WorkspaceSplit({ sidebar, label, children, preview, tabs }: {
+  sidebar: Sidebar;
   label: string;
   children: ReactNode;
   preview: ReactNode;
   tabs: ReactNode;
 }) {
-  const sidebar = useSidebar(config);
   return (
     <div className="work-area" style={sidebar.layout}>
       <aside className={`file-panel${sidebar.isCollapsed ? " is-collapsed" : ""}`} aria-label={label}>

@@ -139,15 +139,24 @@ def repository_fixture(root):
     return repo, origin
 
 
+def repository_cell_follows(desktop, panel_selector):
+    if panel_selector != ".file-panel":
+        return True
+    return round(desktop.bounds(".repository-heading")["width"]) == round(desktop.bounds(panel_selector)["width"])
+
+
 def verify_sidebar(desktop, label, panel_selector):
     previous = desktop.bounds(panel_selector)["width"]
     desktop.drag_divider(label, 46)
     eventually(lambda: desktop.bounds(panel_selector)["width"] > previous + 30)
+    eventually(lambda: repository_cell_follows(desktop, panel_selector))
     resized = desktop.bounds(panel_selector)["width"]
     desktop.click(f"button[aria-label='Collapse {label} sidebar']")
     eventually(lambda: desktop.bounds(panel_selector)["width"] < 50)
+    eventually(lambda: repository_cell_follows(desktop, panel_selector))
     desktop.click(f"button[aria-label='Expand {label} sidebar']")
     eventually(lambda: desktop.bounds(panel_selector)["width"] == resized)
+    eventually(lambda: repository_cell_follows(desktop, panel_selector))
     eventually(lambda: desktop.send("POST", "/execute/sync", {
         "script": "return document.getAnimations().every(animation => animation.playState !== 'running');",
         "args": [],
@@ -207,8 +216,8 @@ def run(desktop, root, evidence):
     desktop.contains(".diff-scroll", "Notes from the desktop")
     shot("01-changes.png")
 
-    desktop.click("button[aria-label='Stage notes.txt']")
-    desktop.contains("[aria-label='Staged files']", "notes.txt")
+    desktop.click("input[aria-label='Stage notes.txt']")
+    desktop.locate("input[aria-label='Unstage notes.txt']")
     desktop.enter("input[name='commit-summary']", "missing ticket")
     desktop.button("Commit to main")
     desktop.contains(".output-panel pre", "ticket scope required")
@@ -276,8 +285,8 @@ def run(desktop, root, evidence):
 
     (repo / "notes.txt").write_text("Pushed desktop update\n")
     desktop.click("button[aria-label='Refresh working tree']")
-    desktop.click("button[aria-label='Stage notes.txt']")
-    desktop.contains("[aria-label='Staged files']", "notes.txt")
+    desktop.click("input[aria-label='Stage notes.txt']")
+    desktop.locate("input[aria-label='Unstage notes.txt']")
     desktop.enter("input[name='commit-summary']", "fix(DESK-101): push update")
     desktop.button("Commit to main")
     desktop.click(".sync-control[aria-label='Push']")
@@ -307,7 +316,7 @@ def qualify_compare(desktop, repo, evidence):
     desktop.click("//option[normalize-space()='compare-target']", "xpath")
     desktop.contains(".compare-commits", "fix(DESK-101): target work")
     desktop.contains(".diff-scroll", "Only on the target")
-    desktop.contains(".diff-sides", "Merge base")
+    desktop.contains(".diff-heading", "Merge base")
     assert git(repo, "branch", "--show-current") == "main"
     if evidence:
         desktop.screenshot(evidence / "compare.png")
@@ -322,7 +331,7 @@ def compare_with(desktop, branch):
     desktop.click("button[aria-label='Branches']")
     desktop.button("Compare branches…")
     desktop.click(f"//option[normalize-space()='{branch}']", "xpath")
-    desktop.contains(".diff-sides", "Merge base")
+    desktop.contains(".diff-heading", "Merge base")
 
 
 def refresh(desktop):
@@ -488,7 +497,7 @@ def qualify_branch_workflows(desktop, repo, origin):
     refresh(desktop)
     desktop.button("Restore")
     eventually(lambda: "UU doc.txt" in git(repo, "status", "--porcelain"))
-    desktop.contains("[aria-label='Unstaged files']", "doc.txt")
+    desktop.contains(".file-list", "doc.txt")
     assert git(repo, "stash", "list") != ""
     assert not desktop.send("POST", "/execute/sync", {
         "script": "return Boolean(document.querySelector('.recovery-bar'));", "args": []})
@@ -557,8 +566,8 @@ def qualify_hooks(desktop, repo, evidence):
     file.write_text(formatted)
 
     open_checkout(desktop, repo)
-    desktop.click("button[aria-label='Stage commitlint.config.ts']")
-    desktop.contains("[aria-label='Staged files']", "commitlint.config.ts")
+    desktop.click("input[aria-label='Stage commitlint.config.ts']")
+    desktop.locate("input[aria-label='Unstage commitlint.config.ts']")
     unstaged = "// Keep this edit unstaged."
     file.write_text(formatted + "\n" + unstaged + "\n")
     desktop.enter("input[name='commit-summary']", "fix: missing ticket")

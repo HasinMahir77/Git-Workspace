@@ -11,6 +11,8 @@ import { RecoveryBar } from "./components/RecoveryBar";
 import { Changes } from "./components/Changes";
 import { History } from "./components/History";
 import { RepositoryPicker } from "./components/RepositoryPicker";
+import { CHANGES, HISTORY } from "./components/sidebar.constants";
+import { useSidebar } from "./components/useSidebar";
 import { WorkspaceDialog } from "./components/WorkspaceDialog";
 import { git } from "./git/client";
 import { DiffViewContext } from "./git/DiffViewContext";
@@ -34,9 +36,12 @@ export function App() {
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const [isComparing, setIsComparing] = useState(false);
   const [view, setView] = useState<View>("changes");
+  const changesSidebar = useSidebar(CHANGES);
+  const historySidebar = useSidebar(HISTORY);
+  const sidebar = view === "history" ? historySidebar : changesSidebar;
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [theme, setTheme] = useState(() => getTheme(localStorage.getItem(THEME_KEY)));
-  const [diffView, setDiffView] = useState<DiffView>(() => localStorage.getItem(DIFF_VIEW_KEY) === "unified" ? "unified" : "split");
+  const [diffView, setDiffView] = useState<DiffView>(() => localStorage.getItem(DIFF_VIEW_KEY) === "split" ? "split" : "unified");
   const outputBox = useRef<HTMLPreElement>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const repo = workspace.selected;
@@ -145,17 +150,19 @@ export function App() {
   return (
     <DiffViewContext.Provider value={diffView}><div className="app-frame">
       <div className="workspace-page" hidden={settings !== null}>
-        <header className="workspace-bar" aria-label="Workspace toolbar">
-          <h1 className="repository-heading truncate">
+        <header className="workspace-bar" aria-label="Workspace toolbar" style={sidebar.layout}>
+          <h1 className={`repository-heading truncate${sidebar.isCollapsed ? " is-folded" : ""}`}>
             <button className="toolbar-cell repository-control" aria-label="Switch repository" title="Switch repository (Ctrl+K)"
               onClick={() => setIsPickerOpen((value) => !value)} disabled={isRestoring} aria-expanded={isPickerOpen} aria-controls="repository-picker">
               <FolderGit2 size={18} aria-hidden="true" />
-              <span className="toolbar-text truncate"><small>Repository</small><strong className="truncate" title={repo?.path}>{repo?.name ?? "Choose a repository"}</strong></span>
+              <span className="toolbar-text truncate"><small>Current repository</small><strong className="truncate" title={repo?.path}>{repo?.name ?? "Choose a repository"}</strong></span>
               <ChevronDown size={14} aria-hidden="true" />
             </button>
           </h1>
           {isPickerOpen && <RepositoryPicker entries={workspace.entries} selected={repo?.id} choose={chooseRepo}
             open={() => showDialog("open")} clone={() => showDialog("clone")} close={() => setIsPickerOpen(false)} isBusy={isBusy} />}
+          <div className="bar-divider" aria-hidden="true" />
+          <div className="workspace-bar-main">
           {repo && (
             <>
               <div className="branch-anchor">
@@ -163,7 +170,7 @@ export function App() {
                 disabled={isBusy || !status} onClick={() => setIsBranchOpen((value) => !value)} aria-expanded={isBranchOpen} aria-controls="branch-menu">
                 <GitBranch size={17} aria-hidden="true" />
                 <span className="toolbar-text truncate">
-                  <small className="truncate">{status?.upstream ? upstreamLabel(status, sync ?? null) : "Branch"}</small>
+                  <small className="truncate">{status?.upstream ? upstreamLabel(status, sync ?? null) : "Current branch"}</small>
                   <strong className="truncate">{branch}</strong>
                 </span>
                 <ChevronDown size={14} aria-hidden="true" />
@@ -197,6 +204,7 @@ export function App() {
             <button className="button icon subtle" ref={settingsButton} aria-label="Settings" title="Settings (Ctrl+,)"
               onClick={() => setSettings("appearance")}><Settings size={18} /></button>
           </div>
+          </div>
         </header>
         <div className="shell">
           <main className="workspace">
@@ -227,10 +235,10 @@ export function App() {
                   openChanges={() => { setView("changes"); setIsComparing(false); }} close={() => setIsComparing(false)} />}
                 <div className="workspace-view" hidden={isComparing}>
                   {view === "history" ? (
-                    <History key={repo.id} repo={repo.id} revision={workspace.revision} tabs={viewTabs} current={status?.branch ?? null}
+                    <History key={repo.id} sidebar={sidebar} repo={repo.id} revision={workspace.revision} tabs={viewTabs} current={status?.branch ?? null}
                       isBusy={isBusy} isDirty={Boolean(status?.files.length)} isPaused={isPaused} run={workspace.mutate} />
                   ) : status ? (
-                    <Changes key={repo.id} repo={repo.id} status={status} revision={workspace.revision} isBusy={isBusy}
+                    <Changes key={repo.id} sidebar={sidebar} repo={repo.id} status={status} revision={workspace.revision} isBusy={isBusy}
                       tabs={viewTabs} viewHistory={() => setView("history")} openTerminal={openTerminal}
                       draft={drafts[repo.id] ?? EMPTY_DRAFT} changeDraft={(draft) => setDrafts((current) => ({ ...current, [repo.id]: draft }))}
                       run={workspace.mutate} />

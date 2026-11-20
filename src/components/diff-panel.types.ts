@@ -1,6 +1,9 @@
+import type { ReactNode } from "react";
+
 export type Props = {
   title?: string;
   detail?: string;
+  actions?: ReactNode;
   patch: string | null;
   error?: string;
   isHistory?: boolean;

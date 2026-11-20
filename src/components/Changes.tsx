@@ -1,107 +1,75 @@
-import { Check, GitCommitHorizontal, Minus, Plus, SquareTerminal } from "lucide-react";
+import { Check, GitCommitHorizontal, SquareTerminal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { git } from "../git/client";
+import { fileKind, fileStateLabel, hasStagedChanges, hasUnstagedChanges, isFullyStaged, isPartlyStaged } from "../git/changes.helpers";
+import { splitPath } from "../git/path.helpers";
 import { messageOf } from "../git/workspace.helpers";
 import { StashPanel } from "./StashPanel";
 import { DiffPanel } from "./DiffPanel";
-import { CHANGES } from "./sidebar.constants";
+import { FileStatusIcon } from "./FileStatusIcon";
+import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
 import { WorkspaceSplit } from "./WorkspaceSplit";
-import type { FileGroupProps, Props, Selection } from "./changes.types";
-import { FILE_STATES } from "./changes.constants";
+import type { DiffSide, FileRowProps, Props } from "./changes.types";
 
-function FileGroup({ files, isStaged, selectedIds, select, selectAll, isBusy, run }: FileGroupProps) {
+function FileRow({ file, isSelected, select, toggle, isBusy }: FileRowProps) {
+  const { directory, name } = splitPath(file.path);
+  const isStaged = isFullyStaged(file);
   const action = isStaged ? "Unstage" : "Stage";
-  const Icon = isStaged ? Minus : Plus;
   return (
-    <section aria-label={isStaged ? "Staged files" : "Unstaged files"}>
-      <div className="group-heading">
-        <button className="button icon subtle" disabled={isBusy || selectedIds.length === 0} title={`${action} selected files`}
-          aria-label={`${action} selected files`} onClick={() => void (async () => {
-            for (const id of selectedIds.filter((id) => files.some((file) => file.id === id && !file.hasConflict))) {
-              if (!await run({ type: isStaged ? "unstage" : "stage", id }, action)) break;
-            }
-          })()}><Icon size={15} /></button>
-        <strong>{isStaged ? "Staged" : "Unstaged"}</strong>
-        <span className="count">{files.length}</span>
-      </div>
-      <div role="group" aria-label={isStaged ? "Staged file list" : "Unstaged file list"}
-        onKeyDown={(event) => {
-          if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "a") {
-            event.preventDefault();
-            selectAll();
-          }
-        }}>
-      {files.map((file) => {
-        const state = isStaged ? file.staged : file.unstaged;
-        const isSelected = selectedIds.includes(file.id);
-        const slash = file.path.lastIndexOf("/");
-        const fileName = file.path.slice(slash + 1);
-        const directory = slash < 0 ? null : file.path.slice(0, slash + 1);
-        const stateLabel = file.hasConflict ? "Conflicted" : FILE_STATES[state] ?? state;
-        return (
-          <div className={`file-row ${isSelected ? "selected" : ""}`} key={file.id}>
-            <button className="file-select row" aria-pressed={isSelected} title={file.path} onClick={(event) => select({ id: file.id, isStaged }, event)}>
-              <span className={`file-status ${state === "D" ? "deleted" : state === "A" || state === "?" ? "added" : ""}`} title={stateLabel} aria-label={stateLabel}>
-                {file.hasConflict ? "!" : state}
-              </span>
-              <span className="file-path truncate">
-                <span className="truncate">{fileName}</span>
-                {directory && <small className="truncate">{directory}</small>}
-              </span>
-            </button>
-            <button type="button" className="button icon subtle" title={`${action} ${file.path}`} aria-label={`${action} ${file.path}`}
-              disabled={isBusy || file.hasConflict} onClick={() => void run({ type: isStaged ? "unstage" : "stage", id: file.id }, action)}>
-              <Icon size={15} />
-            </button>
-          </div>
-        );
-      })}
-      </div>
-    </section>
+    <div className={`file-row${isSelected ? " selected" : ""}`}>
+      <IndeterminateCheckbox checked={isStaged} isIndeterminate={isPartlyStaged(file)} disabled={isBusy || file.hasConflict}
+        aria-label={`${action} ${file.path}`} title={`${action} ${file.path}`} onChange={() => toggle(file)} />
+      <button className="file-select" aria-pressed={isSelected} title={file.path} onClick={(event) => select(file.id, event)}>
+        <span className="file-path truncate"><span className="file-directory">{directory}</span>{name}</span>
+      </button>
+      <FileStatusIcon kind={fileKind(file)} label={fileStateLabel(file)} />
+    </div>
   );
 }
 
-export function Changes({ repo, status, revision, isBusy, draft, changeDraft, run, tabs, viewHistory, openTerminal }: Props) {
-  const [selected, setSelected] = useState<Selection | null>(null);
+export function Changes({ sidebar, repo, status, revision, isBusy, draft, changeDraft, run, tabs, viewHistory, openTerminal }: Props) {
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const anchor = useRef<Selection | null>(null);
+  const [pickedSide, setPickedSide] = useState<DiffSide | null>(null);
+  const anchor = useRef<string | null>(null);
   const [preview, setPreview] = useState<{ key: string; patch: string; error?: string } | null>(null);
-  const staged = status.files.filter((file) => file.staged !== "." && !file.hasConflict);
-  const unstaged = status.files.filter((file) => file.unstaged !== "." || file.hasConflict);
-  const hasConflict = status.files.some((file) => file.hasConflict);
-  function select(selection: Selection, event: MouseEvent<HTMLButtonElement>) {
-    const files = selection.isStaged ? staged : unstaged;
-    const inSameGroup = selected?.isStaged === selection.isStaged;
-    const start = anchor.current?.isStaged === selection.isStaged ? files.findIndex((file) => file.id === anchor.current?.id) : -1;
-    const end = files.findIndex((file) => file.id === selection.id);
+  const files = status.files;
+  const staged = files.filter(hasStagedChanges);
+  const hasConflict = files.some((file) => file.hasConflict);
+  const isAllStaged = files.length > 0 && files.every((file) => file.hasConflict || isFullyStaged(file));
+  const isAnyStaged = files.some((file) => hasStagedChanges(file));
+
+  function select(id: string, event: MouseEvent<HTMLButtonElement>) {
+    const start = files.findIndex((file) => file.id === anchor.current);
+    const end = files.findIndex((file) => file.id === id);
     if (event.shiftKey && start >= 0 && end >= 0) {
-      const range = files.slice(Math.min(start, end), Math.max(start, end) + 1).map((file) => file.id);
-      setSelectedIds(range);
+      setSelectedIds(files.slice(Math.min(start, end), Math.max(start, end) + 1).map((file) => file.id));
     } else if (event.ctrlKey || event.metaKey) {
-      setSelectedIds((previous) => {
-        const group = inSameGroup ? previous : [];
-        return group.includes(selection.id) ? group.filter((id) => id !== selection.id) : [...group, selection.id];
-      });
-      anchor.current = selection;
+      setSelectedIds((previous) => previous.includes(id) ? previous.filter((entry) => entry !== id) : [...previous, id]);
+      anchor.current = id;
     } else {
-      setSelectedIds([selection.id]);
-      anchor.current = selection;
+      setSelectedIds([id]);
+      anchor.current = id;
     }
-    setSelected(selection);
-  }
-  function selectAll(isStaged: boolean) {
-    const files = isStaged ? staged : unstaged;
-    if (!files.length) return;
-    setSelectedIds(files.map((file) => file.id));
-    const first = files[0];
-    if (first) { const selection = { id: first.id, isStaged }; setSelected(selection); anchor.current = selection; }
+    setActiveId(id);
   }
 
-  const selectedFile = (selected?.isStaged ? staged : unstaged).find((file) => file.id === selected?.id);
-  const firstFile = unstaged[0] ?? staged[0];
-  const file = selectedFile ?? firstFile;
-  const isStaged = selectedFile ? Boolean(selected?.isStaged) : unstaged.length === 0;
+  async function stageAll(shouldStage: boolean, targets: typeof files) {
+    for (const target of targets) {
+      if (target.hasConflict || (shouldStage ? isFullyStaged(target) : !hasStagedChanges(target))) continue;
+      if (!await run({ type: shouldStage ? "stage" : "unstage", id: target.id }, shouldStage ? "Stage" : "Unstage")) break;
+    }
+  }
+
+  function toggle(file: (typeof files)[number]) {
+    const targets = selectedIds.includes(file.id) ? files.filter((entry) => selectedIds.includes(entry.id)) : [file];
+    void stageAll(!isFullyStaged(file), targets);
+  }
+
+  const file = files.find((entry) => entry.id === activeId) ?? files[0];
+  const hasBothSides = file !== undefined && isPartlyStaged(file);
+  const isStaged = file === undefined ? false : hasBothSides && pickedSide?.id === file.id ? pickedSide.isStaged : !hasUnstagedChanges(file);
   const id = file?.id;
   const key = `${id}:${isStaged}:${revision}`;
 
@@ -116,9 +84,18 @@ export function Changes({ repo, status, revision, isBusy, draft, changeDraft, ru
     return () => { isCurrent = false; };
   }, [repo, id, isStaged, key]);
 
+  const sideActions = file !== undefined && hasBothSides ? (
+    <span className="segmented" role="group" aria-label="Diff version">
+      {[false, true].map((isStagedSide) => (
+        <button key={String(isStagedSide)} type="button" aria-pressed={isStaged === isStagedSide}
+          onClick={() => setPickedSide({ id: file.id, isStaged: isStagedSide })}>{isStagedSide ? "Staged" : "Unstaged"}</button>
+      ))}
+    </span>
+  ) : undefined;
+
   return (
-    <WorkspaceSplit config={CHANGES} label="Changes and commit" tabs={tabs} preview={
-      status.files.length === 0 ? (
+    <WorkspaceSplit sidebar={sidebar} label="Changes and commit" tabs={tabs} preview={
+      files.length === 0 ? (
         <section className="diff-panel clean-preview" aria-label="Working tree status">
           <div className="clean-card">
             <div className="clean-mark"><Check size={22} aria-hidden="true" /></div>
@@ -132,39 +109,42 @@ export function Changes({ repo, status, revision, isBusy, draft, changeDraft, ru
         </section>
       ) :
         <DiffPanel title={file ? (file.originalPath ? `${file.originalPath} → ${file.path}` : file.path) : undefined}
-          isStaged={isStaged}
+          isStaged={isStaged} actions={sideActions}
           hunkAction={file && !file.hasConflict && !file.originalPath && (isStaged ? file.staged : file.unstaged) !== "?" ? {
             label: isStaged ? "Unstage hunk" : "Stage hunk", isDisabled: isBusy,
             run: (index, header) => void run({ type: isStaged ? "unstageHunk" : "stageHunk", id: file.id, index, header }, isStaged ? "Unstage hunk" : "Stage hunk"),
           } : undefined}
-          detail={file ? isStaged ? "Staged changes" : "Unstaged changes" : undefined}
           patch={preview?.key === key ? preview.patch : null} error={preview?.key === key ? preview.error : undefined} />
     }>
-      <div className="file-list">
-        <StashPanel repo={repo} revision={revision} isBusy={isBusy} hasChanges={status.files.length > 0} run={run} />
-        {status.files.length === 0 ? (
-          <div className="empty"><Check size={22} /><h2>Working tree clean</h2></div>
-        ) : (
-          <>
-            <FileGroup files={unstaged} isStaged={false} selectedIds={selected?.isStaged === false ? selectedIds : []} select={select} selectAll={() => selectAll(false)} isBusy={isBusy} run={run} />
-            <FileGroup files={staged} isStaged selectedIds={selected?.isStaged === true ? selectedIds : []} select={select} selectAll={() => selectAll(true)} isBusy={isBusy} run={run} />
-          </>
-        )}
-      </div>
+      {files.length === 0 ? (
+        <div className="file-list"><div className="empty"><Check size={22} /><h2>Working tree clean</h2></div></div>
+      ) : (
+        <>
+          <div className="list-heading">
+            <IndeterminateCheckbox checked={isAllStaged} isIndeterminate={isAnyStaged && !isAllStaged} disabled={isBusy || hasConflict && files.every((entry) => entry.hasConflict)}
+              aria-label={isAllStaged ? "Unstage all files" : "Stage all files"} onChange={() => void stageAll(!isAllStaged, files)} />
+            <strong>{files.length} changed {files.length === 1 ? "file" : "files"}</strong>
+          </div>
+          <div className="file-list" role="group" aria-label="Changed files" onKeyDown={(event) => {
+            if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "a") {
+              event.preventDefault();
+              setSelectedIds(files.map((entry) => entry.id));
+            }
+          }}>
+            {files.map((entry) => <FileRow key={entry.id} file={entry} isSelected={selectedIds.includes(entry.id) || (selectedIds.length === 0 && entry.id === file?.id)}
+              select={select} toggle={toggle} isBusy={isBusy} />)}
+          </div>
+        </>
+      )}
+      <StashPanel repo={repo} revision={revision} isBusy={isBusy} hasChanges={files.length > 0} run={run} />
       <form className="commit-tray" onSubmit={(event) => {
         event.preventDefault();
         void run({ type: "commit", ...draft }, "Commit").then((isSuccessful) => {
           if (isSuccessful) changeDraft({ summary: "", body: "" });
         });
       }}>
-        <div className="row">
-          <GitCommitHorizontal size={16} aria-hidden="true" />
-          <strong>Commit changes</strong>
-          <span className="spacer" />
-          <small>{staged.length} staged</small>
-        </div>
         <label><span className="sr-only">Summary</span>
-          <input className="field" name="commit-summary" placeholder="Summary" autoComplete="off" value={draft.summary} disabled={isBusy}
+          <input className="field" name="commit-summary" placeholder="Summary (required)" autoComplete="off" value={draft.summary} disabled={isBusy}
             onChange={(event) => changeDraft({ ...draft, summary: event.target.value })} />
         </label>
         <label><span className="sr-only">Description (optional)</span>

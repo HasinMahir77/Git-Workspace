@@ -22,9 +22,9 @@ export function StashPanel({ repo, revision, isBusy, hasChanges, run }: StashPan
   if (!hasChanges && stashes.length === 0 && !error) return null;
   return (
     <section className="stash-panel" aria-label="Stashes">
-      <div className="group-heading">
-        <Archive size={15} aria-hidden="true" />
-        <strong>Stashes</strong>
+      <div className="stash-heading">
+        <Archive size={14} aria-hidden="true" />
+        <strong>Stashed changes</strong>
         <span className="count">{stashes.length}</span>
         <span className="spacer" />
         {hasChanges && !isStashing && <button className="button" disabled={isBusy} onClick={() => setIsStashing(true)}>Stash changes…</button>}

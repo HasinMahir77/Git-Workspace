@@ -1,9 +1,11 @@
 import type { MouseEvent, ReactNode } from "react";
 import type { ChangedFile, Status } from "../git/bindings";
 import type { Draft, RunOperation } from "../git/workspace.types";
+import type { Sidebar } from "./sidebar.types";
 
-export type Selection = { id: string; isStaged: boolean };
+export type DiffSide = { id: string; isStaged: boolean };
 export type Props = {
+  sidebar: Sidebar;
   repo: string;
   tabs: ReactNode;
   viewHistory: () => void;
@@ -16,12 +18,10 @@ export type Props = {
   run: RunOperation;
 };
 
-export type FileGroupProps = {
-  files: ChangedFile[];
-  isStaged: boolean;
-  selectedIds: string[];
-  select: (selection: Selection, event: MouseEvent<HTMLButtonElement>) => void;
-  selectAll: () => void;
+export type FileRowProps = {
+  file: ChangedFile;
+  isSelected: boolean;
+  select: (id: string, event: MouseEvent<HTMLButtonElement>) => void;
+  toggle: (file: ChangedFile) => void;
   isBusy: boolean;
-  run: RunOperation;
 };

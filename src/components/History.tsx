@@ -7,11 +7,11 @@ import { messageOf } from "../git/workspace.helpers";
 import { CherryPickOnto } from "./CherryPickOnto";
 import type { RunOperation } from "../git/workspace.types";
 import { DiffPanel } from "./DiffPanel";
-import { HISTORY } from "./sidebar.constants";
+import type { Sidebar } from "./sidebar.types";
 import { WorkspaceSplit } from "./WorkspaceSplit";
 
-export function History({ repo, revision, tabs, current, isBusy, isDirty, isPaused, run }: {
-  repo: string; revision: number; tabs: ReactNode; current: string | null; isBusy: boolean; isDirty: boolean; isPaused: boolean; run: RunOperation;
+export function History({ sidebar, repo, revision, tabs, current, isBusy, isDirty, isPaused, run }: {
+  sidebar: Sidebar; repo: string; revision: number; tabs: ReactNode; current: string | null; isBusy: boolean; isDirty: boolean; isPaused: boolean; run: RunOperation;
 }) {
   const [commits, setCommits] = useState<Commit[]>([]);
   const [selected, select] = useState<string | null>(null);
@@ -62,7 +62,7 @@ export function History({ repo, revision, tabs, current, isBusy, isDirty, isPaus
   }
 
   return (
-    <WorkspaceSplit config={HISTORY} label="Commits" tabs={tabs} preview={<>
+    <WorkspaceSplit sidebar={sidebar} label="Commits" tabs={tabs} preview={<>
         {commit && !isPaused && <CherryPickOnto repo={repo} commit={commit} current={current} isBusy={isBusy} isDirty={isDirty} run={run} />}
         <DiffPanel title={commit?.summary} detail={id?.slice(0, 8)} isHistory
           patch={id && preview?.id === id ? preview.patch : null} error={id && preview?.id === id ? preview.error : undefined} />
