@@ -1,11 +1,14 @@
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { git } from "../git/client";
 import type { Commit } from "../git/bindings";
 import { HISTORY_PAGE_SIZE } from "../git/workspace.constants";
 import { messageOf } from "../git/workspace.helpers";
 import { DiffPanel } from "./DiffPanel";
+import { HISTORY } from "./sidebar.constants";
+import { WorkspaceSplit } from "./WorkspaceSplit";
 
-export function History({ repo, revision }: { repo: string; revision: number }) {
+export function History({ repo, revision, tabs }: { repo: string; revision: number; tabs: ReactNode }) {
   const [commits, setCommits] = useState<Commit[]>([]);
   const [selected, select] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -55,22 +58,21 @@ export function History({ repo, revision }: { repo: string; revision: number }) 
   }
 
   return (
-    <div className="work-area">
-      <aside className="file-panel" aria-label="Commits">
-        <div className="file-list">
-          {error && <div role="alert" className="banner"><p>{error}</p></div>}
-          {commits.length === 0 && !error && <div className="empty">{isLoading ? "Loading history" : "No commits yet"}</div>}
-          {commits.map((entry) => (
-            <button className="history-item" aria-pressed={entry.id === id} key={entry.id} onClick={() => select(entry.id)}>
-              <strong className="truncate">{entry.summary}</strong>
-              <small><span className="truncate">{entry.author}</span><time dateTime={entry.date}>{entry.date}</time></small>
-            </button>
-          ))}
-          {hasMore && <div className="history-more"><button className="button" disabled={isLoading} onClick={() => void loadMore()}>Load more commits</button></div>}
-        </div>
-      </aside>
-      <DiffPanel title={commit?.summary} detail={id?.slice(0, 8)} isHistory
-        patch={id && preview?.id === id ? preview.patch : null} error={id && preview?.id === id ? preview.error : undefined} />
-    </div>
+    <WorkspaceSplit config={HISTORY} label="Commits" tabs={tabs} preview={
+        <DiffPanel title={commit?.summary} detail={id?.slice(0, 8)} isHistory
+          patch={id && preview?.id === id ? preview.patch : null} error={id && preview?.id === id ? preview.error : undefined} />
+    }>
+      <div className="file-list">
+        {error && <div role="alert" className="banner"><p>{error}</p></div>}
+        {commits.length === 0 && !error && <div className="empty">{isLoading ? "Loading history" : "No commits yet"}</div>}
+        {commits.map((entry) => (
+          <button className="history-item" aria-pressed={entry.id === id} key={entry.id} onClick={() => select(entry.id)}>
+            <strong className="truncate">{entry.summary}</strong>
+            <small><span className="truncate">{entry.author}</span><time dateTime={entry.date}>{entry.date}</time></small>
+          </button>
+        ))}
+        {hasMore && <div className="history-more"><button className="button" disabled={isLoading} onClick={() => void loadMore()}>Load more commits</button></div>}
+      </div>
+    </WorkspaceSplit>
   );
 }

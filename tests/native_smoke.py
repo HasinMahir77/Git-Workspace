@@ -72,6 +72,27 @@ class Desktop:
             "args": [selector],
         })
 
+    def bounds(self, selector):
+        return self.send("POST", "/execute/sync", {
+            "script": "return document.querySelector(arguments[0])?.getBoundingClientRect().toJSON();",
+            "args": [selector],
+        })
+
+    def drag_divider(self, label, distance):
+        selector = f"[role='separator'][aria-label='Resize {label} sidebar']"
+        bounds = eventually(lambda: self.bounds(selector))
+        x = round(bounds["x"] + bounds["width"] / 2)
+        y = round(bounds["y"] + bounds["height"] / 3)
+        self.send("POST", "/actions", {"actions": [
+            {"type": "pointer", "id": "mouse", "parameters": {"pointerType": "mouse"}, "actions": [
+                {"type": "pointerMove", "origin": "viewport", "x": x, "y": y, "duration": 0},
+                {"type": "pointerDown", "button": 0},
+                {"type": "pointerMove", "origin": "viewport", "x": x + distance, "y": y, "duration": 350},
+                {"type": "pointerUp", "button": 0},
+            ]},
+        ]})
+        self.send("DELETE", "/actions")
+
     def contains(self, selector, text):
         try:
             eventually(lambda: text in self.text(selector))
@@ -118,6 +139,55 @@ def repository_fixture(root):
     return repo, origin
 
 
+def verify_sidebar(desktop, label, panel_selector):
+    previous = desktop.bounds(panel_selector)["width"]
+    desktop.drag_divider(label, 46)
+    eventually(lambda: desktop.bounds(panel_selector)["width"] > previous + 30)
+    resized = desktop.bounds(panel_selector)["width"]
+    desktop.click(f"button[aria-label='Collapse {label} sidebar']")
+    eventually(lambda: desktop.bounds(panel_selector)["width"] < 50)
+    desktop.click(f"button[aria-label='Expand {label} sidebar']")
+    eventually(lambda: desktop.bounds(panel_selector)["width"] == resized)
+    return resized
+
+
+def qualify_sidebars(desktop):
+    if desktop.bounds(".rail")["width"] < 50:
+        desktop.click("button[aria-label='Expand Repositories sidebar']")
+    verify_sidebar(desktop, "Repositories", ".rail")
+    resized = verify_sidebar(desktop, "Changes", ".file-panel")
+    desktop.click("button[aria-label='History']")
+    verify_sidebar(desktop, "History", ".file-panel")
+    desktop.click("button[aria-label='Collapse History sidebar']")
+    desktop.click(".view-tab:first-child")
+    eventually(lambda: desktop.bounds(".file-panel")["width"] == resized)
+    desktop.click("button[aria-label='History']")
+    eventually(lambda: desktop.bounds(".file-panel")["width"] < 50)
+    desktop.click("button[aria-label='Expand History sidebar']")
+    desktop.click(".view-tab:first-child")
+    print("Sidebar smoke passed: mouse resize, fold and restore for all three sidebars.")
+
+
+def qualify_settings(desktop, evidence):
+    desktop.click("button[aria-label='Settings']")
+    desktop.contains(".settings-bar h1", "Settings")
+    assert desktop.bounds(".workspace-bar")["height"] == 0
+    desktop.click(".theme-card:has(input[value='dark'])")
+    assert desktop.send("POST", "/execute/sync", {
+        "script": "return document.documentElement.dataset.theme;",
+        "args": [],
+    }) == "dark"
+    if evidence:
+        desktop.screenshot(evidence / "05-settings.png")
+    verify_sidebar(desktop, "Settings", ".settings-nav")
+    desktop.button("Git environment")
+    desktop.contains(".diagnostic", "git version")
+    desktop.button("Back to workspace")
+    desktop.contains(".repository-heading", "notebook")
+    desktop.contains(".clean-preview", "No local changes")
+    print("Settings smoke passed: theme selection and environment diagnostics in the dedicated page.")
+
+
 def run(desktop, root, evidence):
     repo, origin = repository_fixture(root)
     shot = lambda name: desktop.screenshot(evidence / name if evidence else None)
@@ -156,19 +226,20 @@ def run(desktop, root, evidence):
     desktop.contains(".history-item", "fix(DESK-101): update notes")
     desktop.contains(".diff-scroll", "Notes from the desktop")
 
-    desktop.button("Branches")
+    desktop.click("button[aria-label='Branches']")
     desktop.enter("dialog[open] input", "release-check")
     desktop.button("Create branch")
-    desktop.contains(".branch-status", "release-check")
-    desktop.button("Branches")
+    desktop.contains(".branch-control", "release-check")
+    desktop.click("button[aria-label='Branches']")
     desktop.button("main")
-    desktop.contains(".branch-status", "main")
+    desktop.contains(".branch-control", "main")
 
-    desktop.button("Publish branch")
+    desktop.click(".sync-control[aria-label='Publish branch']")
     desktop.click("dialog[open] button.primary")
-    desktop.contains(".branch-status", "origin/main")
+    desktop.contains(".branch-control", "origin/main")
     assert git(origin, "rev-parse", "main") == git(repo, "rev-parse", "main")
 
+    desktop.click("button[aria-label='Switch repository']")
     desktop.button("Clone repository")
     desktop.enter("dialog[open] label:first-of-type input", str(origin))
     desktop.enter("dialog[open] .row input", str(root))
@@ -182,9 +253,13 @@ def run(desktop, root, evidence):
     (second / "notes.txt").write_text("Remote update\n")
     git(second, "commit", "-am", "Remote update")
     git(second, "push")
-    desktop.button("notebook")
-    desktop.button("Fetch")
-    desktop.button("Pull")
+    desktop.click("button[aria-label='Switch repository']")
+    desktop.enter("input[aria-label='Search repositories']", "notebook")
+    desktop.contains(".repository-options", "notebook")
+    assert "second-checkout" not in desktop.text(".repository-options")
+    desktop.click(".repository-options .repo")
+    desktop.click(".sync-control[aria-label='Fetch']")
+    desktop.click(".sync-control[aria-label='Pull']")
     eventually(lambda: (repo / "notes.txt").read_text() == "Remote update\n")
     desktop.contains(".file-list", "Working tree clean")
     assert (repo / "notes.txt").read_text() == "Remote update\n"
@@ -195,20 +270,20 @@ def run(desktop, root, evidence):
     desktop.contains("[aria-label='Staged files']", "notes.txt")
     desktop.enter("input[name='commit-summary']", "fix(DESK-101): push update")
     desktop.button("Commit to main")
-    desktop.button("Push")
+    desktop.click(".sync-control[aria-label='Push']")
     desktop.click("dialog[open] button.primary")
     eventually(lambda: git(origin, "rev-parse", "main") == git(repo, "rev-parse", "main"))
 
-    desktop.button("Git environment")
-    desktop.contains(".diagnostic", "git version")
-    desktop.click("dialog[open] button[aria-label='Close dialog']")
+    qualify_settings(desktop, evidence)
+    qualify_sidebars(desktop)
     print("Packaged Tauri smoke passed: checkout, diff, stage, hook rejection and cancellation, history, branches, publish, clone, fetch, pull, and push.")
 
 
 def open_checkout(desktop, repo):
-    desktop.click("button[aria-label='Open a repository folder']")
-    desktop.enter("dialog[open] input", str(repo))
-    desktop.click("dialog[open] button.primary")
+    desktop.click("button[aria-label='Switch repository']")
+    desktop.button("Open repository")
+    desktop.enter("dialog[open]:not(.repository-picker) input", str(repo))
+    desktop.click("dialog[open]:not(.repository-picker) button.primary")
     desktop.contains("h1", repo.name)
 
 
@@ -245,7 +320,7 @@ def qualify_hooks(desktop, repo, evidence):
     assert unstaged not in git(repo, "show", "HEAD:commitlint.config.ts")
     git(repo, "restore", "--worktree", "--", "commitlint.config.ts")
 
-    desktop.button("Push")
+    desktop.click(".sync-control[aria-label='Push']")
     desktop.click("dialog[open] button.primary")
     desktop.contains(".output-panel pre", "typecheck")
     eventually(lambda: not desktop.text(".output-panel [role='status']"), seconds=240)
@@ -264,11 +339,11 @@ def qualify_org_auth(desktop, repo):
 
 
 def qualify_accounts(desktop, evidence):
-    desktop.contains(".account-trigger", "work-fixture")
     desktop.click("button[aria-label='Manage GitHub accounts']")
     desktop.contains(".account-list", "personal-fixture")
+    desktop.contains(".account-row:has(.active-badge)", "work-fixture")
     desktop.click("button[aria-label='Switch to personal-fixture']")
-    desktop.contains(".account-trigger", "personal-fixture")
+    desktop.contains(".account-row:has(.active-badge)", "personal-fixture")
 
     desktop.button("Add account")
     code = desktop.locate("input[aria-label='One-time device code']")
@@ -276,14 +351,14 @@ def qualify_accounts(desktop, evidence):
     desktop.button("Open GitHub")
     desktop.button("Cancel sign-in")
     desktop.button("Add account")
-    desktop.contains(".account-trigger", "work-fixture")
+    desktop.contains(".account-row:has(.active-badge)", "work-fixture")
 
     desktop.button("Set up Git HTTPS")
     desktop.button("Use GitHub CLI")
-    desktop.contains("dialog[open]", "GitHub CLI is configured for Git HTTPS.")
+    desktop.contains(".account-settings", "GitHub CLI is configured for Git HTTPS.")
     if evidence:
         desktop.screenshot(evidence / "04-github-accounts.png")
-    desktop.click("dialog[open] button[aria-label='Close dialog']")
+    desktop.button("Back to workspace")
     print("GitHub account smoke passed: active account, switch, browser code, cancellation, sign-in refresh, and HTTPS setup.")
 
 

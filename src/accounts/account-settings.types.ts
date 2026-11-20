@@ -1,8 +1,8 @@
 import type { GitHubAccounts } from "../git/bindings";
 
-export type AccountDialogProps = {
+export type AccountSettingsProps = {
   accountState: GitHubAccounts | null;
   loadError: string;
   refresh: () => Promise<void>;
-  close: () => void;
+  isWorkspaceBusy: boolean;
 };

@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
 import type { ReactNode } from "react";
 
-export function Modal({ title, close, children }: { title: string; close: () => void; children: ReactNode }) {
+export function Modal({ title, close, children, className }: { title: string; close: () => void; children: ReactNode; className?: string }) {
   const titleId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -12,7 +12,7 @@ export function Modal({ title, close, children }: { title: string; close: () => 
   }, []);
 
   return (
-    <dialog ref={dialog} aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); close(); }}>
+    <dialog ref={dialog} className={className} aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); close(); }}>
       <div className="dialog-title row">
         <h2 id={titleId}>{title}</h2>
         <span className="spacer" />

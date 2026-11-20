@@ -1,9 +1,13 @@
+import type { ReactNode } from "react";
 import type { ChangedFile, Status } from "../git/bindings";
 import type { Draft, RunOperation } from "../git/workspace.types";
 
 export type Selection = { id: string; isStaged: boolean };
 export type Props = {
   repo: string;
+  tabs: ReactNode;
+  viewHistory: () => void;
+  openTerminal: () => void;
   status: Status;
   revision: number;
   isBusy: boolean;

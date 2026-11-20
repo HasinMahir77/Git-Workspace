@@ -1,7 +1,6 @@
 import { FolderOpen, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import type { ToolVersion } from "../git/bindings";
 import { git } from "../git/client";
 import { messageOf } from "../git/workspace.helpers";
 import type { Props } from "./workspace-dialog.types";
@@ -14,7 +13,6 @@ export function WorkspaceDialog({ kind, repo, status, sync, isBusy, error, close
   const [name, setName] = useState("");
   const [remote, setRemote] = useState(sync?.fetchRemote ?? "");
   const [branches, setBranches] = useState<string[] | null>(null);
-  const [tools, setTools] = useState<ToolVersion[] | null>(null);
   const [localError, setLocalError] = useState("");
 
   useEffect(() => {
@@ -22,9 +20,6 @@ export function WorkspaceDialog({ kind, repo, status, sync, isBusy, error, close
     const onError = (reason: unknown) => { if (isCurrent) setLocalError(messageOf(reason)); };
     if (kind === "branches" && repo) {
       void git.branches(repo).then((result) => { if (isCurrent) setBranches(result); }).catch(onError);
-    }
-    if (kind === "environment") {
-      void git.tools(repo).then((result) => { if (isCurrent) setTools(result); }).catch(onError);
     }
     return () => { isCurrent = false; };
   }, [kind, repo]);
@@ -40,21 +35,6 @@ export function WorkspaceDialog({ kind, repo, status, sync, isBusy, error, close
 
   const feedback = (localError || error) && <p role="alert" className="dialog-error">{localError || error}</p>;
   const cancel = <button type="button" className="button" onClick={close}>Cancel</button>;
-
-  if (kind === "environment") {
-    return (
-      <Modal title="Git environment" close={close}>
-        <div className="dialog-form">
-          {feedback}
-          {!tools && !localError && <p className="muted">Checking tools…</p>}
-          {tools && <dl className="diagnostic">{tools.map((tool) => (
-            <div className="diagnostic-row" key={tool.name}><dt><code>{tool.name}</code></dt><dd>{tool.version ?? "Unavailable on this PATH"}</dd></div>
-          ))}</dl>}
-          <p className="muted">Git and hooks inherit the app’s environment. If a tool is missing here, launch <code>git-workspace</code> from your working terminal.</p>
-        </div>
-      </Modal>
-    );
-  }
 
   if (kind === "branches") {
     const switchable = branches?.filter((branch) => branch !== status?.branch) ?? [];
