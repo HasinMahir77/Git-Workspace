@@ -35,8 +35,10 @@ Use Node 22, pnpm 10.29.3, stable Rust, and the [Tauri Ubuntu build dependencies
 ```sh
 pnpm install --frozen-lockfile
 pnpm tauri dev
-pnpm tauri build --bundles deb
+pnpm package:deb
 ```
+
+`pnpm package:deb` builds the `.deb` and deletes bundles from older versions, so `bundle/deb` only holds the current one.
 
 The Rust Git layer is in `crates/git-core`. Tauri registers explicitly opened worktrees and exposes typed commands from `src-tauri`. The React app is in `src`. Run `pnpm bindings:generate` after editing IPC types in Rust.
 

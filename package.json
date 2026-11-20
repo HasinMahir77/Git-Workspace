@@ -10,6 +10,7 @@
     "test": "cargo test --workspace && node --test tests/*.test.mjs && pnpm bindings:check",
     "bindings:generate": "cargo run -q -p git-gui-core --example bindings > src/git/bindings.ts",
     "bindings:check": "node scripts/check-bindings.mjs",
+    "package:deb": "node scripts/package-deb.mjs",
     "tauri": "tauri"
   },
   "dependencies": {
