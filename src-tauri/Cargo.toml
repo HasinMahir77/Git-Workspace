@@ -1,0 +1,17 @@
+[package]
+name = "git-workspace"
+version = "0.2.0"
+edition = "2024"
+description = "An Ubuntu desktop client for your existing Git setup"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+git-gui-core = { path = "../crates/git-core" }
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = { version = "2", default-features = false, features = ["gtk3"] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
