@@ -20,7 +20,7 @@ Use the Repository, Branch, and sync controls in the top toolbar. Search your op
 
 ## Sidebars
 
-Drag the divider beside Repositories, Changes, History, or the Settings navigation to resize it. The toggle at the top of each sidebar folds or expands it. Git Workspace remembers each sidebar's width and folded state. With a divider focused, use the arrow keys to resize it.
+Drag the divider beside Changes, History, or the Settings navigation to resize it. The toggle at the top of each sidebar folds or expands it. Git Workspace remembers each sidebar's width and folded state. With a divider focused, use the arrow keys to resize it.
 
 ## GitHub accounts
 

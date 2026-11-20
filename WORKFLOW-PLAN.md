@@ -1,0 +1,63 @@
+# Git Workspace workflow plan
+
+Build the Git workflows this user regularly needs on Ubuntu. Keep the installed Git CLI in charge of repository operations, including its credential helpers, SSH settings, signing, hooks, and configuration. Keep GitHub CLI for existing account integration. Review changes, compare branches, integrate work, and recover from conflicts in the same workspace.
+
+This is the implementation handoff. `PLAN.md` remains background on the original release. Start from the current checkout and preserve the pending full-height repository picker changes on top of `1f74e7e`. Inspect `git status --short` before editing. Use disposable repositories for tests and preserve the user's existing checkouts, configuration, and credentials.
+
+## Scope and defaults
+
+| Item | What it means here | Priority |
+| --- | --- | --- |
+| Edit remotes | Change where a named remote such as `origin` fetches or pushes. This is useful after moving a repository or setting up a fork. | Defer the editor. Show the selected remote and target when useful. Keep using existing Git config. |
+| Recent repositories and organization groups | Sort the picker by last use and group GitHub repositories under their owners. This changes list navigation only. | Keep the searchable full-height picker. Defer grouping, account lookups, and new repository metadata. |
+| Branch operations | Compare changes, check out a remote branch locally, merge, rebase, and cherry-pick. | Core scope. |
+| Changes and recovery | Review and stage selected hunks, stash work, and manage conflicts. | Core scope. Start with hunk staging and unstage. Treat destructive discard and line-level staging as follow-up slices. |
+| GitHub and advanced workflows | Pull request UI, worktree management screens, tag management, history rewriting tools such as interactive reordering, and integrations. | Defer. Existing linked-worktree discovery and current Git and GitHub account workflows still need to work. |
+
+Ship in the order below. Put compare and merge first so the interaction and recovery model are usable before adding rebase and cherry-pick. Begin at task 1.
+
+## Architecture and verification
+
+- Existing read path goes from `src/git/client.ts` through `src-tauri/src/commands/workspace.rs` to `crates/git-core/src/repository.rs` or `history.rs`. Existing write path goes through `src/git/useWorkspace.ts`, `run_operation` in `src-tauri/src/commands/operations.rs`, and the Rust repository methods. The Tauri repository registry already serializes writes for entries with the same Git common directory in `src-tauri/src/repositories.rs`.
+- Add typed requests and reports in `crates/git-core/src/types.rs`. A focused Rust module for compare and integration is a proposed addition. Add read and write handlers only where needed. Keep `src-tauri/src/main.rs` command registration and the Rust binding exporter in `crates/git-core/examples/bindings.rs` in sync. Run `pnpm bindings:generate`; the app consumes `src/git/bindings.ts` directly.
+- Rust resolves refs to commit IDs, validates repository IDs and inputs, and constructs Git arguments. Keep ref, commit, and path identities typed. Use the existing process runner with argument vectors and streamed, bounded output. Resolve operands that come from the user before passing them to Git. Preserve the existing fast-forward-only Pull and safe single-branch Push behavior in `sync.rs`. Merge and Rebase never implicitly push or change remotes.
+- Use the TDD and frontend-design skills when implementing. For each backend slice, write one failing Rust integration test driven through a public repository method, make it pass, then refactor. Reuse the `Checkout` and hook helpers in `crates/git-core/tests/support/mod.rs`. Use local bare remotes when tests require a remote. Assert actual refs, commit graph, index, and working tree. Frontend unit tests cover helpers or mappers. Extend `tests/native_smoke.py` for desktop workflows. Keep constants, types, and helpers in dedicated files.
+- Baseline and completion checks are `pnpm test`, `pnpm build`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`. The root workspace excludes the Tauri crate, so run both Clippy commands. Package on Ubuntu and run the native smoke test documented in `README.md`. Use the original `PLAN.md` hook qualification when testing with a disposable Zenurture checkout.
+
+## Task 1. Compare branches and tighten the workspace
+
+Add **Compare branches…** to the branch dropdown in `src/components/BranchMenu.tsx`. Open a comparison in the existing workspace pane in `src/App.tsx`, with **Current branch** and **Compare with** labeled. Default the second branch to the current branch's configured upstream when it resolves, otherwise prompt for it. Reuse `DiffPanel.tsx` for file diffs and the existing unified and split preferences. Show commits unique to each branch separately. Default files to the selected branch's changes since the merge base and label the split panes **Merge base** and the selected branch name. A comparison keeps the branch checked out and leaves the index and working tree alone. Report an unavailable merge base clearly and disable Merge and Rebase in that case. [Git diff](https://git-scm.com/docs/git-diff)
+
+Use one toolbar for repository, branch, and sync. Keep the full-height repository picker and the bounded branch dropdown as overlays. Keep Changes or History in the existing resizable, foldable sidebar. Use the large pane for diff, compare, or recovery. Changes and History currently render their own `WorkspaceSplit`. When opening a comparison, preserve the active list, selection, and commit draft. In `src/styles.css` and `src/components/WorkspaceSplit.tsx`, remove duplicate headings, tighten row padding, and keep the commit form compact. Update `src/git/useWorkspace.ts` and the output panel so successful operations release their vertical space, failures show their output, and users can reopen the last output. Keep accessible labels, visible focus, split-view resizing, reduced motion, and keyboard behavior in inputs. Verify at 1024×768 and at the current 850×580 minimum in `src-tauri/tauri.conf.json`. At the minimum size, the diff and its header should be visible without scrolling the app shell, with independent scrolling inside the list and diff. At 1366×768 with default widths and the picker closed, keep at least 70% of the workspace width for the diff.
+
+TDD starts with diverged branches in a fixture containing one unique commit on each side. Assert the counts and selected branch's changes and prove a dirty working tree and checked-out branch stay intact. Cover identical refs, unrelated histories, and a branch moving or disappearing during preview. In the native smoke test, pick a different branch to compare against and close the comparison. Check that the changes list, selection, and draft are still there.
+
+## Task 2. Merge and recover from conflicts
+
+From Compare, offer **Merge into current branch**. Before running Git show both branches, for example `Merge origin/feature into development`. Use a clean working tree for the first release of Merge, Rebase, and Cherry-pick. If it is dirty, provide a route back to Changes and, once task 4 is available, a separate Stash action. Respect Git's configured merge behavior and show **Already up to date** where appropriate. Preserve upstream and hook behavior. Revalidate the destination checkout and source ref inside the write guard; a stale preview should ask for a refresh. [Git merge](https://git-scm.com/docs/git-merge)
+
+When Git pauses, use compact status and actions above the current work area. List unresolved files with **Open in Terminal**, **Mark resolved** after editing, **Continue merge**, and **Abort merge**. Explain that marking a file resolved stages the edits. Keep Continue disabled while unmerged entries remain and offer Abort whenever Git reports an active merge. Block conflicting writes while a paused operation owns the worktree. Detect operation state from the selected worktree's Git paths, using Git to resolve those paths. Recover the UI state after a refresh or restart and distinguish cancellation of a live subprocess from aborting a persisted operation. Scope any noninteractive Git editor setting to the commands that need it, keep hooks enabled, and retain output when Git or a hook fails. [Git rev-parse](https://git-scm.com/docs/git-rev-parse) · [Unmerged index entries](https://git-scm.com/docs/git-ls-files)
+
+TDD starts with a clean fast-forward merge. Follow with a diverged merge, conflicts resolved and continued, abort restoring the pre-operation state, a dirty tree refusing the operation, stale branch confirmation, and conflict discovery in a linked worktree. Use a rejecting `pre-merge-commit` for a diverged merge that would create a commit. Keep the fixture hook directory outside the worktree or locally ignored so it passes the clean-tree check. Assert refs and file contents after each outcome.
+
+## Task 3. Rebase, cherry-pick, and remote branch checkout
+
+- **Rebase current branch onto…** starts from Compare. Preview the destination and which local commits are candidates to be replayed. Let Git determine the final replay result, including equivalent commits it skips. Make it clear that commit IDs can change. Reuse recovery with **Continue rebase** and **Abort rebase**. Keep interactive reorder and force-push outside this slice. [Git rebase](https://git-scm.com/docs/git-rebase)
+- **Cherry-pick into current branch** starts from a source-only commit in Compare. **Cherry-pick onto…** in `src/components/History.tsx` requires another local destination because History shows commits already reachable from HEAD. Show the selected commit's short ID and subject, the destination, and any checkout that will occur. Support one commit initially. For another destination, hold the same write guard through checkout and cherry-pick, and explain that the selected destination stays checked out after abort. Reuse recovery with **Continue cherry-pick** and **Abort cherry-pick**. Treat merge commits requiring a mainline selection as a terminal workflow for this slice. [Git cherry-pick](https://git-scm.com/docs/git-cherry-pick)
+- Add local and remote-tracking groups to Branches via typed data from `history.rs` or the proposed branch module. On remote checkout show the local name and upstream. Preserve a matching existing local branch and explain tracking-name collisions. Keep branch and repository pickers compact and scrollable. [Git switch](https://git-scm.com/docs/git-switch)
+
+Use real diverged and conflicting fixtures. Verify changed and unchanged refs, duplicate or empty commits that need a decision, detached HEAD behavior, recovery after reload, and rejected switches when the target branch is already checked out in a linked worktree. Use an explicit noninteractive continuation strategy where Git would otherwise request an editor, and keep hook execution enabled.
+
+## Task 4. Stash and focused staging
+
+- Add **Stash changes…** in Changes and use a compact list for restore and drop. Make **Include untracked files** explicit. Restore staging with `git stash apply --index` and keep the stash available until the user drops it. A conflicted restore returns to Changes with unresolved paths and no Continue or Abort action. Confirm a drop and verify the selected stash still resolves to the entry the user reviewed. [Git stash](https://git-scm.com/docs/git-stash)
+- Add **Stage hunk** and **Unstage hunk** in Changes through `Changes.tsx` and `DiffPanel.tsx`. Keep the renderer's display diff separate from the exact CLI patch. Let Rust fetch and validate the selected hunk against the current worktree and index before applying it. The process runner currently closes stdin. Add a dedicated patch input path or use a securely created temporary file. Offer hunk controls only where Git can apply the patch reliably. Preserve existing whole-file and bulk operations. [Git apply](https://git-scm.com/docs/git-apply)
+
+First prove a stash round trip and a single hunk staged from a file with two independent edits. Then verify untracked-file behavior, a stash apply conflict that retains the stash, a stale hunk, reverse index application, and a hook-rejected commit that retains the intended staged and unstaged content. Treat binary, rename, or unmerged previews conservatively. Keep whole-file actions available where they already work.
+
+## Completion
+
+- [ ] Task 1. Compare and compact workspace
+- [ ] Task 2. Merge and conflict recovery
+- [ ] Task 3. Rebase, cherry-pick, and remote checkout
+- [ ] Task 4. Stash and hunk staging

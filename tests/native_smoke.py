@@ -156,9 +156,6 @@ def verify_sidebar(desktop, label, panel_selector):
 
 
 def qualify_sidebars(desktop):
-    if desktop.bounds(".rail")["width"] < 50:
-        desktop.click("button[aria-label='Expand Repositories sidebar']")
-    verify_sidebar(desktop, "Repositories", ".rail")
     resized = verify_sidebar(desktop, "Changes", ".file-panel")
     desktop.click("button[aria-label='History']")
     verify_sidebar(desktop, "History", ".file-panel")

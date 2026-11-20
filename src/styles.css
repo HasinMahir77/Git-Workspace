@@ -297,3 +297,11 @@ dialog::backdrop { background: #1015258c; }
 .unified-diff span { display: block; padding: 0 10px; }
 .unified-diff .addition { color: var(--success); background: var(--success-bg); }
 .unified-diff .deletion { color: var(--danger); background: var(--danger-bg); }
+.workspace-bar { position: relative; z-index: 10; }
+.repository-heading { flex: 0 1 230px; min-width: 145px; max-width: 280px; }
+.repository-picker { position: absolute; z-index: 20; top: 100%; left: 0; bottom: auto; width: min(300px, 90vw); height: calc(100vh - 54px); display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--control-line); border-top: 0; border-radius: 0 0 10px 0; background: var(--raised); box-shadow: 8px 12px 24px #0004; }
+.repository-options { flex: 1; display: block; max-height: none; min-height: 0; overflow: auto; }
+.repository-list-heading { display: block; padding: 5px 8px; color: var(--muted); font-size: 11px; }
+.repository-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.shell { display: flex; }
+.shell > .workspace { flex: 1; }

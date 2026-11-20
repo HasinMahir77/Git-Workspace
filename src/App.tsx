@@ -9,9 +9,6 @@ import { BranchMenu } from "./components/BranchMenu";
 import { Changes } from "./components/Changes";
 import { History } from "./components/History";
 import { RepositoryPicker } from "./components/RepositoryPicker";
-import { RAIL } from "./components/sidebar.constants";
-import { SidebarDivider, SidebarToggle } from "./components/SidebarControls";
-import { useSidebar } from "./components/useSidebar";
 import { WorkspaceDialog } from "./components/WorkspaceDialog";
 import { git } from "./git/client";
 import { DiffViewContext } from "./git/DiffViewContext";
@@ -25,7 +22,6 @@ import { SettingsPage } from "./settings/SettingsPage";
 import type { SettingsSection } from "./settings/settings.types";
 
 export function App() {
-  const sidebar = useSidebar(RAIL);
   const workspace = useWorkspace();
   const accounts = useGitHubAccounts();
   const [settings, setSettings] = useState<SettingsSection | null>(null);
@@ -143,14 +139,16 @@ export function App() {
     <DiffViewContext.Provider value={diffView}><div className="app-frame">
       <div className="workspace-page" hidden={settings !== null}>
         <header className="workspace-bar" aria-label="Workspace toolbar">
-          <h1 className={`repository-heading truncate${sidebar.isCollapsed ? " repository-heading-collapsed" : ""}`} style={sidebar.isCollapsed ? undefined : { width: sidebar.layout.gridTemplateColumns?.toString().split(" 8px ")[0] }}>
+          <h1 className="repository-heading truncate">
             <button className="toolbar-cell repository-control" aria-label="Switch repository" title="Switch repository (Ctrl+K)"
-              onClick={() => setIsPickerOpen(true)} disabled={isRestoring} aria-haspopup="dialog">
+              onClick={() => setIsPickerOpen((value) => !value)} disabled={isRestoring} aria-expanded={isPickerOpen} aria-controls="repository-picker">
               <FolderGit2 size={18} aria-hidden="true" />
               <span className="toolbar-text truncate"><small>Repository</small><strong className="truncate" title={repo?.path}>{repo?.name ?? "Choose a repository"}</strong></span>
               <ChevronDown size={14} aria-hidden="true" />
             </button>
           </h1>
+          {isPickerOpen && <RepositoryPicker entries={workspace.entries} selected={repo?.id} choose={chooseRepo}
+            open={() => showDialog("open")} clone={() => showDialog("clone")} close={() => setIsPickerOpen(false)} isBusy={isBusy} />}
           {repo && (
             <>
               <div className="branch-anchor">
@@ -193,26 +191,7 @@ export function App() {
               onClick={() => setSettings("appearance")}><Settings size={18} /></button>
           </div>
         </header>
-        <div className="shell" style={sidebar.layout}>
-          <aside className="rail" aria-label="Repositories">
-            <div className="rail-heading">
-                {!sidebar.isCollapsed && <strong className="spacer">Repositories</strong>}
-                <button className="button icon subtle" aria-label="Open a repository folder" title="Open repository (Ctrl+O)"
-                  disabled={isBusy || isRestoring} onClick={() => showDialog("open")} hidden={sidebar.isCollapsed}><FolderOpen size={16} /></button>
-                <SidebarToggle sidebar={sidebar} />
-            </div>
-            <div className="rail-content" id={sidebar.panelId} hidden={sidebar.isCollapsed}>
-              <nav className="rail-list" aria-label="Open repositories">
-                {workspace.entries.map((entry) => (
-                  <button className="repo row" key={entry.id} aria-current={entry.id === repo?.id ? "true" : undefined} title={entry.path}
-                    onClick={() => chooseRepo(entry.id)}>
-                    <FolderGit2 size={16} aria-hidden="true" /><span className="truncate">{entry.name}</span>
-                  </button>
-                ))}
-              </nav>
-            </div>
-          </aside>
-          <SidebarDivider sidebar={sidebar} />
+        <div className="shell">
           <main className="workspace">
             {workspace.error && !dialog && (
               <div className="banner" role="alert">
@@ -260,8 +239,6 @@ export function App() {
       {settings && <SettingsPage section={settings} selectSection={setSettings} close={closeSettings}
         theme={theme} changeTheme={setTheme} diffView={diffView} changeDiffView={setDiffView} repositoryId={repo?.id} accountState={accounts.state}
         accountError={accounts.error} refreshAccounts={accounts.refresh} isWorkspaceBusy={isBusy} />}
-      {isPickerOpen && <RepositoryPicker entries={workspace.entries} selected={repo?.id} choose={chooseRepo}
-        open={() => showDialog("open")} clone={() => showDialog("clone")} close={() => setIsPickerOpen(false)} isBusy={isBusy} />}
       {dialog && (
         <WorkspaceDialog key={dialog} kind={dialog} repo={repo?.id} status={status} sync={sync} error={workspace.error}
           close={() => setDialog(null)} open={workspace.open} clone={workspace.clone} isBusy={isBusy} run={workspace.mutate} />
