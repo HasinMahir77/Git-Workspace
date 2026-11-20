@@ -59,7 +59,7 @@ export function BranchMenu({ repo, current, isBusy, close, run, compare }: Branc
         <form className="branch-create row" onSubmit={(event) => {
           event.preventDefault();
           close();
-          void run({ type: "createBranch", branch: name.trim() }, "Create branch");
+          void run({ type: "createBranch", branch: name.trim(), start: null }, "Create branch");
         }}>
           <input className="field" aria-label="New branch name" placeholder="New branch name" autoFocus
             value={name} onChange={(event) => setName(event.target.value)} required />

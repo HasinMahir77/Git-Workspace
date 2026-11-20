@@ -2,7 +2,7 @@ import { Check, Download, FolderGit2, FolderOpen, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { RepositoryPickerProps } from "./repository-picker.types";
 
-export function RepositoryPicker({ entries, selected, choose, open, clone, close, isBusy }: RepositoryPickerProps) {
+export function RepositoryPicker({ entries, selected, choose, open, clone, close, isBusy, showMenu }: RepositoryPickerProps) {
   const [query, setQuery] = useState("");
   const panel = useRef<HTMLDivElement>(null);
   const search = query.trim().toLowerCase();
@@ -38,7 +38,7 @@ export function RepositoryPicker({ entries, selected, choose, open, clone, close
         <strong className="repository-list-heading">Repositories</strong>
         {matching.map((entry) => (
           <button className="repo row" aria-current={entry.id === selected ? "true" : undefined} key={entry.id}
-            title={entry.path} onClick={() => choose(entry.id)}>
+            title={entry.path} onClick={() => choose(entry.id)} onContextMenu={(event) => showMenu(event, entry)}>
             <FolderGit2 size={17} aria-hidden="true" />
             <span className="file-path truncate spacer"><strong className="truncate">{entry.name}</strong><small className="truncate">{entry.path}</small></span>
             {entry.id === selected && <Check size={16} aria-hidden="true" />}

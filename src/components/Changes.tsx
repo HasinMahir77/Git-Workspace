@@ -4,7 +4,13 @@ import type { MouseEvent } from "react";
 import { git } from "../git/client";
 import { fileKind, fileStateLabel, hasStagedChanges, hasUnstagedChanges, isFullyStaged, isPartlyStaged } from "../git/changes.helpers";
 import { splitPath } from "../git/path.helpers";
+import { copyText } from "../git/clipboard.helpers";
+import { changesListMenu, changesMenu } from "../git/menu.helpers";
+import { useExternalEditor } from "../git/useExternalEditor";
 import { messageOf } from "../git/workspace.helpers";
+import type { ChangedFile } from "../git/bindings";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { useContextMenu } from "./useContextMenu";
 import { StashPanel } from "./StashPanel";
 import { DiffPanel } from "./DiffPanel";
 import { FileStatusIcon } from "./FileStatusIcon";
@@ -12,12 +18,12 @@ import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
 import { WorkspaceSplit } from "./WorkspaceSplit";
 import type { DiffSide, FileRowProps, Props } from "./changes.types";
 
-function FileRow({ file, isSelected, select, toggle, isBusy }: FileRowProps) {
+function FileRow({ file, isSelected, select, toggle, showMenu, isBusy }: FileRowProps) {
   const { directory, name } = splitPath(file.path);
   const isStaged = isFullyStaged(file);
   const action = isStaged ? "Unstage" : "Stage";
   return (
-    <div className={`file-row${isSelected ? " selected" : ""}`}>
+    <div className={`file-row${isSelected ? " selected" : ""}`} onContextMenu={(event) => showMenu(event, file)}>
       <IndeterminateCheckbox checked={isStaged} isIndeterminate={isPartlyStaged(file)} disabled={isBusy || file.hasConflict}
         aria-label={`${action} ${file.path}`} title={`${action} ${file.path}`} onChange={() => toggle(file)} />
       <button className="file-select" aria-pressed={isSelected} title={file.path} onClick={(event) => select(file.id, event)}>
@@ -28,11 +34,14 @@ function FileRow({ file, isSelected, select, toggle, isBusy }: FileRowProps) {
   );
 }
 
-export function Changes({ sidebar, repo, status, revision, isBusy, draft, changeDraft, run, tabs, viewHistory, openTerminal }: Props) {
+export function Changes({ sidebar, repo, repositoryPath, status, revision, isBusy, draft, changeDraft, run, report, tabs, viewHistory, openTerminal }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pickedSide, setPickedSide] = useState<DiffSide | null>(null);
+  const [discarding, setDiscarding] = useState<ChangedFile[] | null>(null);
   const anchor = useRef<string | null>(null);
+  const menu = useContextMenu();
+  const editorLabel = useExternalEditor();
   const [preview, setPreview] = useState<{ key: string; patch: string; error?: string } | null>(null);
   const files = status.files;
   const staged = files.filter(hasStagedChanges);
@@ -62,9 +71,48 @@ export function Changes({ sidebar, repo, status, revision, isBusy, draft, change
     }
   }
 
-  function toggle(file: (typeof files)[number]) {
+  function toggle(file: ChangedFile) {
     const targets = selectedIds.includes(file.id) ? files.filter((entry) => selectedIds.includes(entry.id)) : [file];
     void stageAll(!isFullyStaged(file), targets);
+  }
+
+  const attempt = (work: Promise<void>) => void work.catch((reason: unknown) => report(messageOf(reason)));
+
+  async function discard(targets: ChangedFile[]) {
+    for (const target of targets) {
+      if (!await run({ type: "discard", id: target.id }, "Discard changes")) break;
+    }
+  }
+
+  function showFileMenu(event: MouseEvent, file: ChangedFile) {
+    if (isBusy) return;
+    const isInSelection = selectedIds.includes(file.id);
+    if (!isInSelection) {
+      setSelectedIds([file.id]);
+      setActiveId(file.id);
+      anchor.current = file.id;
+    }
+    menu.open(event, changesMenu({
+      repositoryPath, files: isInSelection ? files.filter((entry) => selectedIds.includes(entry.id)) : [file], editorLabel,
+      copy: (text) => void copyText(text),
+      discard: setDiscarding,
+      ignorePath: (path) => void run({ type: "addToGitignore", pattern: path }, "Ignore"),
+      ignorePattern: (pattern) => void run({ type: "addToGitignore", pattern }, "Ignore"),
+      include: (targets, shouldInclude) => void stageAll(shouldInclude, targets),
+      showInFiles: (path) => attempt(git.reveal(repo, path)),
+      openInEditor: (path) => attempt(git.openInEditor(repo, path)),
+      openDefault: (path) => attempt(git.openDefault(repo, path)),
+    }));
+  }
+
+  function showListMenu(event: MouseEvent) {
+    if (isBusy) return;
+    menu.open(event, changesListMenu({
+      hasChanges: files.length > 0,
+      canStash: files.length > 0 && status.branch !== null && !hasConflict,
+      discardAll: () => setDiscarding(files),
+      stashAll: () => void run({ type: "stashPush", shouldIncludeUntracked: false }, "Stash changes"),
+    }));
   }
 
   const file = files.find((entry) => entry.id === activeId) ?? files[0];
@@ -125,14 +173,14 @@ export function Changes({ sidebar, repo, status, revision, isBusy, draft, change
               aria-label={isAllStaged ? "Unstage all files" : "Stage all files"} onChange={() => void stageAll(!isAllStaged, files)} />
             <strong>{files.length} changed {files.length === 1 ? "file" : "files"}</strong>
           </div>
-          <div className="file-list" role="group" aria-label="Changed files" onKeyDown={(event) => {
+          <div className="file-list" role="group" aria-label="Changed files" onContextMenu={showListMenu} onKeyDown={(event) => {
             if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "a") {
               event.preventDefault();
               setSelectedIds(files.map((entry) => entry.id));
             }
           }}>
             {files.map((entry) => <FileRow key={entry.id} file={entry} isSelected={selectedIds.includes(entry.id) || (selectedIds.length === 0 && entry.id === file?.id)}
-              select={select} toggle={toggle} isBusy={isBusy} />)}
+              select={select} toggle={toggle} showMenu={showFileMenu} isBusy={isBusy} />)}
           </div>
         </>
       )}
@@ -156,6 +204,16 @@ export function Changes({ sidebar, repo, status, revision, isBusy, draft, change
           Commit{status.branch ? ` to ${status.branch}` : ""}
         </button>
       </form>
+      {menu.node}
+      {discarding && (
+        <ConfirmDialog title="Confirm discard changes" confirmLabel={discarding.length === 1 ? "Discard changes" : `Discard ${discarding.length} files`}
+          isDanger close={() => setDiscarding(null)} confirm={() => void discard(discarding)}>
+          <p>Are you sure you want to discard all changes to:</p>
+          <ul className="discard-list">{discarding.slice(0, 10).map((entry) => <li key={entry.id} className="truncate">{entry.path}</li>)}
+            {discarding.length > 10 && <li className="muted">and {discarding.length - 10} more</li>}</ul>
+          <p className="muted">Changes can be restored by retrieving them from the Trash.</p>
+        </ConfirmDialog>
+      )}
     </WorkspaceSplit>
   );
 }

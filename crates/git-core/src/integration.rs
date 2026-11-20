@@ -74,6 +74,55 @@ impl Repository {
         self.report_pause(result)
     }
 
+    /// Adds a commit that undoes one non-merge commit.
+    pub fn revert_commit(&self, commit: &str, execution: &Execution<'_>) -> Result<(), String> {
+        self.require_no_paused_operation()?;
+        let commit = self.resolve_commit(commit)?;
+        let parents = text(&git(
+            self.root(),
+            ["rev-list", "--parents", "-n1", &commit],
+        )?);
+        if parents.split_whitespace().count() > 2 {
+            return Err(
+                "This is a merge commit, which needs a mainline choice. Use Open in Terminal to revert it.".into(),
+            );
+        }
+        self.require_clean_worktree("Revert")?;
+        let result =
+            stream_git_without_editor(self.root(), &["revert", "--no-edit", &commit], execution);
+        self.report_pause(result)
+    }
+
+    /// Detaches HEAD at a commit from the history list.
+    pub fn checkout_commit(&self, commit: &str, execution: &Execution<'_>) -> Result<(), String> {
+        self.require_no_paused_operation()?;
+        let commit = self.resolve_commit(commit)?;
+        stream_git(self.root(), &["switch", "--detach", &commit], execution)
+    }
+
+    /// Creates a branch at a commit and checks it out.
+    pub fn create_branch_at(
+        &self,
+        branch: &str,
+        commit: &str,
+        execution: &Execution<'_>,
+    ) -> Result<(), String> {
+        self.require_no_paused_operation()?;
+        if branch.starts_with('-') || branch.starts_with('@') {
+            return Err("Enter a valid branch name.".into());
+        }
+        git(
+            self.root(),
+            ["check-ref-format", &format!("refs/heads/{branch}")],
+        )?;
+        let commit = self.resolve_commit(commit)?;
+        stream_git(
+            self.root(),
+            &["switch", "--create", branch, &commit],
+            execution,
+        )
+    }
+
     /// Checks out a remote-tracking branch as a local branch that tracks it,
     /// reusing a local branch that already tracks the same remote branch.
     pub fn checkout_remote(
@@ -148,6 +197,7 @@ impl Repository {
             ("rebase-merge", IntegrationKind::Rebase),
             ("rebase-apply", IntegrationKind::Rebase),
             ("CHERRY_PICK_HEAD", IntegrationKind::CherryPick),
+            ("REVERT_HEAD", IntegrationKind::Revert),
         ]
         .into_iter()
         .find_map(|(name, kind)| self.has_git_path(name).transpose().map(|r| r.map(|_| kind)))
@@ -181,6 +231,7 @@ impl Repository {
             IntegrationKind::Merge => &["commit", "--no-edit"],
             IntegrationKind::Rebase => &["rebase", "--continue"],
             IntegrationKind::CherryPick => &["cherry-pick", "--continue"],
+            IntegrationKind::Revert => &["revert", "--continue"],
         };
         let result = stream_git_without_editor(self.root(), args, execution);
         self.report_pause(result)
@@ -195,6 +246,7 @@ impl Repository {
             IntegrationKind::Merge => &["merge", "--abort"],
             IntegrationKind::Rebase => &["rebase", "--abort"],
             IntegrationKind::CherryPick => &["cherry-pick", "--abort"],
+            IntegrationKind::Revert => &["revert", "--abort"],
         };
         stream_git(self.root(), args, execution)
     }
@@ -211,6 +263,7 @@ impl Repository {
             }
             IntegrationKind::Rebase => &["rebase", "--skip"],
             IntegrationKind::CherryPick => &["cherry-pick", "--skip"],
+            IntegrationKind::Revert => &["revert", "--skip"],
         };
         let result = stream_git_without_editor(self.root(), args, execution);
         self.report_pause(result)

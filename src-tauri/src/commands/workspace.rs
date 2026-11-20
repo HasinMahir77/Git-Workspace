@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use git_gui_core::{
-    BranchGroups, Commit, Comparison, Recovery, Repository, RepositoryInfo, StashEntry, Status,
-    SyncState,
+    BranchGroups, Commit, CommitFile, Comparison, Recovery, Repository, RepositoryInfo, StashEntry,
+    Status, SyncState,
 };
 use tauri::State;
 
@@ -66,10 +66,21 @@ pub async fn get_history(
 pub async fn get_commit_diff(
     repo: String,
     commit: String,
+    paths: Vec<String>,
     state: State<'_, Repositories>,
 ) -> Result<String, String> {
     let entry = state.get(&repo)?;
-    blocking(move || entry.repository.commit_diff(&commit)).await
+    blocking(move || entry.repository.commit_diff(&commit, &paths)).await
+}
+
+#[tauri::command]
+pub async fn get_commit_files(
+    repo: String,
+    commit: String,
+    state: State<'_, Repositories>,
+) -> Result<Vec<CommitFile>, String> {
+    let entry = state.get(&repo)?;
+    blocking(move || entry.repository.commit_files(&commit)).await
 }
 
 #[tauri::command]

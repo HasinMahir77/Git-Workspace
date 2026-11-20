@@ -1,10 +1,12 @@
 mod accounts;
 pub use accounts::*;
 mod environment;
+mod external;
 mod operations;
 mod workspace;
 
 pub use environment::*;
+pub use external::*;
 pub use operations::*;
 pub use workspace::*;
 

@@ -1,27 +1,21 @@
 import { GitCommitHorizontal } from "lucide-react";
-import { useEffect, useState } from "react";
-import { git } from "../git/client";
+import { useEffect, useRef, useState } from "react";
 import { cherryPickSummary } from "../git/recovery.helpers";
 import type { CherryPickOntoProps } from "./cherry-pick-onto.types";
 
-export function CherryPickOnto({ repo, commit, current, isBusy, isDirty, run }: CherryPickOntoProps) {
-  const [destinations, setDestinations] = useState<string[]>([]);
+export function CherryPickOnto({ commit, destinations, focusKey, isBusy, isDirty, run }: CherryPickOntoProps) {
   const [destination, setDestination] = useState("");
   const [isConfirming, setIsConfirming] = useState(false);
+  const select = useRef<HTMLSelectElement>(null);
 
-  useEffect(() => {
-    let isCurrent = true;
-    void git.branchGroups(repo).then((groups) => { if (isCurrent) setDestinations(groups.local.filter((name) => name !== current)); })
-      .catch(() => { if (isCurrent) setDestinations([]); });
-    return () => { isCurrent = false; };
-  }, [repo, current]);
   useEffect(() => setIsConfirming(false), [commit.id, destination]);
+  useEffect(() => { if (focusKey > 0) select.current?.focus(); }, [focusKey]);
 
   if (destinations.length === 0) return null;
   return (
     <div className="merge-row row">
       <label className="row"><span>Cherry-pick onto</span>
-        <select className="field" value={destination} onChange={(event) => setDestination(event.target.value)}>
+        <select className="field" ref={select} value={destination} onChange={(event) => setDestination(event.target.value)}>
           <option value="" disabled>Choose a local branch</option>
           {destinations.map((name) => <option key={name}>{name}</option>)}
         </select>

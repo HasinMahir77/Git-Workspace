@@ -1,5 +1,5 @@
 use crate::{
-    Commit, Execution, Repository,
+    Commit, CommitFile, Execution, Repository,
     git::{git, text},
 };
 
@@ -25,10 +25,28 @@ impl Repository {
         parse_commits(&output)
     }
 
-    pub fn commit_diff(&self, id: &str) -> Result<String, String> {
-        if !matches!(id.len(), 40 | 64) || !id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            return Err("Invalid commit ID".into());
-        }
+    pub fn commit_diff(&self, id: &str, paths: &[String]) -> Result<String, String> {
+        require_commit_id(id)?;
+        let mut arguments: Vec<&str> = vec![
+            "--literal-pathspecs",
+            "show",
+            "--format=",
+            "--root",
+            "--diff-merges=first-parent",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--no-color",
+            "--find-renames",
+            id,
+            "--",
+        ];
+        arguments.extend(paths.iter().map(String::as_str));
+        Ok(text(&git(self.root(), arguments)?))
+    }
+
+    /// Lists the files one commit changed, compared with its first parent.
+    pub fn commit_files(&self, id: &str) -> Result<Vec<CommitFile>, String> {
+        require_commit_id(id)?;
         let output = git(
             self.root(),
             [
@@ -36,15 +54,37 @@ impl Repository {
                 "--format=",
                 "--root",
                 "--diff-merges=first-parent",
-                "--no-ext-diff",
-                "--no-textconv",
-                "--no-color",
+                "--name-status",
+                "-z",
                 "--find-renames",
                 id,
                 "--",
             ],
         )?;
-        Ok(text(&output))
+        let mut fields = output
+            .split(|byte| *byte == 0)
+            .filter(|field| !field.is_empty());
+        let mut files = Vec::new();
+        while let Some(status) = fields.next() {
+            let status = text(status);
+            let letter = status.chars().next().unwrap_or('M');
+            let is_pair = matches!(letter, 'R' | 'C');
+            let first = text(fields.next().ok_or("Git listed a file without a path.")?);
+            let (path, original_path) = if is_pair {
+                (
+                    text(fields.next().ok_or("Git listed a rename without a path.")?),
+                    Some(first),
+                )
+            } else {
+                (first, None)
+            };
+            files.push(CommitFile {
+                path,
+                original_path,
+                status: letter.to_string(),
+            });
+        }
+        Ok(files)
     }
 
     pub fn branches(&self) -> Result<Vec<String>, String> {
@@ -101,4 +141,12 @@ pub(crate) fn parse_commits(output: &[u8]) -> Result<Vec<Commit>, String> {
             })
         })
         .collect()
+}
+
+fn require_commit_id(id: &str) -> Result<(), String> {
+    if matches!(id.len(), 40 | 64) && id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        Ok(())
+    } else {
+        Err("Invalid commit ID".into())
+    }
 }

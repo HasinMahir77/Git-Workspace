@@ -21,6 +21,7 @@ import type { DiffView } from "./git/diff-view.types";
 import { EMPTY_DRAFT, THEME_KEY } from "./git/workspace.constants";
 import { getTheme, messageOf, syncAction, upstreamLabel } from "./git/workspace.helpers";
 import type { DialogKind, Draft, View } from "./git/workspace.types";
+import { useRepositoryMenu } from "./git/useRepositoryMenu";
 import { useRecovery } from "./git/useRecovery";
 import { useWorkspace } from "./git/useWorkspace";
 import { SettingsPage } from "./settings/SettingsPage";
@@ -52,6 +53,7 @@ export function App() {
   const isBusy = Boolean(workspace.operation);
   const action = status && sync ? syncAction(status, sync) : null;
   const isRestoring = !workspace.hasRestored;
+  const repositoryMenu = useRepositoryMenu(workspace.entries, workspace.remove, workspace.setError);
 
   useEffect(() => {
     localStorage.setItem(THEME_KEY, theme);
@@ -153,14 +155,15 @@ export function App() {
         <header className="workspace-bar" aria-label="Workspace toolbar" style={sidebar.layout}>
           <h1 className={`repository-heading truncate${sidebar.isCollapsed ? " is-folded" : ""}`}>
             <button className="toolbar-cell repository-control" aria-label="Switch repository" title="Switch repository (Ctrl+K)"
-              onClick={() => setIsPickerOpen((value) => !value)} disabled={isRestoring} aria-expanded={isPickerOpen} aria-controls="repository-picker">
+              onClick={() => setIsPickerOpen((value) => !value)} disabled={isRestoring}
+              onContextMenu={(event) => { if (repo) repositoryMenu.show(event, repo); }} aria-expanded={isPickerOpen} aria-controls="repository-picker">
               <FolderGit2 size={18} aria-hidden="true" />
               <span className="toolbar-text truncate"><small>Current repository</small><strong className="truncate" title={repo?.path}>{repo?.name ?? "Choose a repository"}</strong></span>
               <ChevronDown size={14} aria-hidden="true" />
             </button>
           </h1>
           {isPickerOpen && <RepositoryPicker entries={workspace.entries} selected={repo?.id} choose={chooseRepo}
-            open={() => showDialog("open")} clone={() => showDialog("clone")} close={() => setIsPickerOpen(false)} isBusy={isBusy} />}
+            open={() => showDialog("open")} clone={() => showDialog("clone")} close={() => setIsPickerOpen(false)} isBusy={isBusy} showMenu={repositoryMenu.show} />}
           <div className="bar-divider" aria-hidden="true" />
           <div className="workspace-bar-main">
           {repo && (
@@ -236,9 +239,10 @@ export function App() {
                 <div className="workspace-view" hidden={isComparing}>
                   {view === "history" ? (
                     <History key={repo.id} sidebar={sidebar} repo={repo.id} revision={workspace.revision} tabs={viewTabs} current={status?.branch ?? null}
-                      isBusy={isBusy} isDirty={Boolean(status?.files.length)} isPaused={isPaused} run={workspace.mutate} />
+                      isBusy={isBusy} isDirty={Boolean(status?.files.length)} isPaused={isPaused} run={workspace.mutate}
+                      hasGitHubRemote={repositoryMenu.hasGitHubRemote(repo.id)} report={workspace.setError} />
                   ) : status ? (
-                    <Changes key={repo.id} sidebar={sidebar} repo={repo.id} status={status} revision={workspace.revision} isBusy={isBusy}
+                    <Changes key={repo.id} sidebar={sidebar} repo={repo.id} repositoryPath={repo.path} report={workspace.setError} status={status} revision={workspace.revision} isBusy={isBusy}
                       tabs={viewTabs} viewHistory={() => setView("history")} openTerminal={openTerminal}
                       draft={drafts[repo.id] ?? EMPTY_DRAFT} changeDraft={(draft) => setDrafts((current) => ({ ...current, [repo.id]: draft }))}
                       run={workspace.mutate} />
@@ -263,6 +267,7 @@ export function App() {
           </main>
         </div>
       </div>
+      {repositoryMenu.node}
       {settings && <SettingsPage section={settings} selectSection={setSettings} close={closeSettings}
         theme={theme} changeTheme={setTheme} diffView={diffView} changeDiffView={setDiffView} repositoryId={repo?.id} accountState={accounts.state}
         accountError={accounts.error} refreshAccounts={accounts.refresh} isWorkspaceBusy={isBusy} />}

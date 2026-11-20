@@ -7,6 +7,7 @@ export type DiffSide = { id: string; isStaged: boolean };
 export type Props = {
   sidebar: Sidebar;
   repo: string;
+  repositoryPath: string;
   tabs: ReactNode;
   viewHistory: () => void;
   openTerminal: () => void;
@@ -16,6 +17,7 @@ export type Props = {
   draft: Draft;
   changeDraft: (draft: Draft) => void;
   run: RunOperation;
+  report: (message: string) => void;
 };
 
 export type FileRowProps = {
@@ -23,5 +25,6 @@ export type FileRowProps = {
   isSelected: boolean;
   select: (id: string, event: MouseEvent<HTMLButtonElement>) => void;
   toggle: (file: ChangedFile) => void;
+  showMenu: (event: MouseEvent<HTMLElement>, file: ChangedFile) => void;
   isBusy: boolean;
 };

@@ -152,7 +152,7 @@ fn reads_separate_staged_and_working_diffs_and_opens_commit_history() {
     assert_eq!(history[0].summary, "Initial notes");
     assert!(
         repository
-            .commit_diff(&history[0].id)
+            .commit_diff(&history[0].id, &[])
             .unwrap()
             .contains("+original")
     );

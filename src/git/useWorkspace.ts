@@ -73,6 +73,13 @@ export function useWorkspace() {
     setRepositories((previous) => ({ ...previous, selected: id }));
   }
 
+  function remove(id: string) {
+    setRepositories((previous) => {
+      const entries = previous.entries.filter((entry) => entry.id !== id);
+      return { entries, selected: previous.selected === id ? entries[0]?.id ?? null : previous.selected };
+    });
+  }
+
   function register(entry: RepositoryInfo) {
     setRepositories((previous) => ({
       entries: previous.entries.some((existing) => existing.id === entry.id) ? previous.entries : [...previous.entries, entry],
@@ -119,7 +126,7 @@ export function useWorkspace() {
 
   async function mutate(request: Operation, label: string) {
     if (!repo || isRunning.current) return false;
-    const canCancel = !["stage", "unstage", "stageHunk", "unstageHunk"].includes(request.type);
+    const canCancel = !["stage", "unstage", "stageHunk", "unstageHunk", "discard", "addToGitignore"].includes(request.type);
     setCancelTarget(canCancel ? repo : null);
     const result = await run(label, (emit) => git.run(repo, request, emit), canCancel);
     setCancelTarget(null);
@@ -148,6 +155,6 @@ export function useWorkspace() {
     hasRestored,
     lastFetch: repo ? fetchTimes[repo] : undefined,
     error, setError, revision, refresh, operation, output, hasOutputOpen, setHasOutputOpen,
-    select, open, clone, mutate, canCancel: Boolean(cancelTarget), isCancelling, cancel,
+    select, remove, open, clone, mutate, canCancel: Boolean(cancelTarget), isCancelling, cancel,
   };
 }

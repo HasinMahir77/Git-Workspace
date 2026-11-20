@@ -49,6 +49,14 @@ pub struct PushTarget {
 }
 
 #[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitFile {
+    pub path: String,
+    pub original_path: Option<String>,
+    pub status: String,
+}
+
+#[derive(Debug, Serialize, TS)]
 pub struct Commit {
     pub id: String,
     pub summary: String,
@@ -95,6 +103,19 @@ pub enum Operation {
     },
     CreateBranch {
         branch: String,
+        start: Option<String>,
+    },
+    Discard {
+        id: String,
+    },
+    AddToGitignore {
+        pattern: String,
+    },
+    RevertCommit {
+        commit: String,
+    },
+    CheckoutCommit {
+        commit: String,
     },
     Fetch {
         remote: String,
@@ -176,6 +197,7 @@ pub enum IntegrationKind {
     Merge,
     Rebase,
     CherryPick,
+    Revert,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -191,6 +213,7 @@ impl IntegrationKind {
             Self::Merge => "Merge",
             Self::Rebase => "Rebase",
             Self::CherryPick => "Cherry-pick",
+            Self::Revert => "Revert",
         }
     }
 }

@@ -1,6 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { BranchGroups, Commit, Comparison, Recovery, StashEntry, Operation, RepositoryInfo, Status, SyncState, ToolVersion } from "./bindings";
+import type { BranchGroups, Commit, CommitFile, Comparison, Recovery, StashEntry, Operation, RepositoryInfo, Status, SyncState, ToolVersion } from "./bindings";
 
 function outputChannel(emit: (line: string) => void) {
   const channel = new Channel<string>();
@@ -22,10 +22,17 @@ export const git = {
   stashes: (repo: string) => invoke<StashEntry[]>("get_stashes", { repo }),
   diff: (repo: string, file: string, isStaged: boolean) => invoke<string>("get_diff", { repo, file, isStaged }),
   history: (repo: string, offset: number) => invoke<Commit[]>("get_history", { repo, offset }),
-  commitDiff: (repo: string, commit: string) => invoke<string>("get_commit_diff", { repo, commit }),
+  commitDiff: (repo: string, commit: string, paths: string[] = []) => invoke<string>("get_commit_diff", { repo, commit, paths }),
+  commitFiles: (repo: string, commit: string) => invoke<CommitFile[]>("get_commit_files", { repo, commit }),
   run: (repo: string, operation: Operation, emit: (line: string) => void) =>
     invoke<void>("run_operation", { repo, operation, output: outputChannel(emit) }),
   cancel: (repo: string) => invoke<void>("cancel_operation", { repo }),
   tools: (repo?: string) => invoke<ToolVersion[]>("tool_versions", { repo }),
   terminal: (repo: string) => invoke<void>("open_terminal", { repo }),
+  externalEditor: () => invoke<string | null>("external_editor"),
+  reveal: (repo: string, path?: string) => invoke<void>("reveal_in_file_manager", { repo, path: path ?? null }),
+  openInEditor: (repo: string, path?: string) => invoke<void>("open_in_editor", { repo, path: path ?? null }),
+  openDefault: (repo: string, path: string) => invoke<void>("open_with_default_program", { repo, path }),
+  openOnGitHub: (repo: string, commit?: string) => invoke<void>("open_on_github", { repo, commit: commit ?? null }),
+  hasGitHubRemote: (repo: string) => invoke<boolean>("has_github_remote", { repo }),
 };

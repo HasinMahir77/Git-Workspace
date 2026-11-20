@@ -27,7 +27,7 @@ function Title({ title, isPath }: { title: string; isPath: boolean }) {
   return <span className="diff-title truncate" title={title}><span className="diff-directory">{directory}</span><strong>{name}</strong></span>;
 }
 
-export function DiffPanel({ title, detail, actions, patch, error, isHistory = false, isStaged = false, sides, hunkAction }: Props) {
+export function DiffPanel({ title, detail, actions, emptyTitle, patch, error, isHistory = false, isStaged = false, sides, hunkAction }: Props) {
   const diffView = useContext(DiffViewContext);
   const rows = useMemo(() => patch ? splitDiff(patch).filter((row) => (
     !("meta" in row) || !/^(?:index |--- |\+\+\+ )/.test(row.meta) && (isHistory || !row.meta.startsWith("diff --git "))
@@ -80,7 +80,7 @@ export function DiffPanel({ title, detail, actions, patch, error, isHistory = fa
       ) : (
         <div className="empty" role={error ? "alert" : undefined}>
           <Icon size={25} aria-hidden="true" />
-          <h2>{error ? "Diff unavailable" : !title ? (isHistory ? "Select a commit" : "Select a changed file") : patch === null ? "Loading diff" : "No text changes"}</h2>
+          <h2>{error ? "Diff unavailable" : emptyTitle ? emptyTitle : !title ? (isHistory ? "Select a commit" : "Select a changed file") : patch === null ? "Loading diff" : "No text changes"}</h2>
           {error && <p className="muted">{error}</p>}
         </div>
       )}

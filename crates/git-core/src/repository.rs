@@ -183,7 +183,7 @@ fn path_output(bytes: &[u8]) -> PathBuf {
     OsStr::from_bytes(bytes.strip_suffix(b"\n").unwrap_or(bytes)).into()
 }
 
-fn decode_path(id: &str) -> Result<OsString, String> {
+pub(crate) fn decode_path(id: &str) -> Result<OsString, String> {
     let bytes = id
         .as_bytes()
         .chunks(2)

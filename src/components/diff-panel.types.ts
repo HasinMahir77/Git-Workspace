@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 export type Props = {
   title?: string;
   detail?: string;
+  emptyTitle?: string;
   actions?: ReactNode;
   patch: string | null;
   error?: string;

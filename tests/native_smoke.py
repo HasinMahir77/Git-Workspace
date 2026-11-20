@@ -32,7 +32,7 @@ def eventually(action, seconds=15):
         try:
             if result := action():
                 return result
-        except (OSError, RuntimeError) as error:
+        except (OSError, RuntimeError, subprocess.SubprocessError) as error:
             last_error = error
         time.sleep(0.15)
     raise AssertionError(f"Timed out waiting for {action}") from last_error
@@ -296,9 +296,10 @@ def run(desktop, root, evidence):
     qualify_compare(desktop, repo, evidence)
     qualify_workflows(desktop, repo, evidence)
     qualify_branch_workflows(desktop, repo, origin)
+    qualify_context_menus(desktop, repo, evidence)
     qualify_settings(desktop, evidence)
     qualify_sidebars(desktop)
-    print("Packaged Tauri smoke passed: checkout, diff, stage, hook rejection and cancellation, history, branches, compare, cherry-pick, hunk staging, stash, layout, rebase abort, merge conflict recovery, remote checkout, History cherry-pick, skipping an empty cherry-pick, stash conflict, publish, clone, fetch, pull, and push.")
+    print("Packaged Tauri smoke passed: checkout, diff, stage, hook rejection and cancellation, history, branches, compare, cherry-pick, hunk staging, stash, layout, rebase abort, merge conflict recovery, remote checkout, History cherry-pick, skipping an empty cherry-pick, stash conflict, context menus, publish, clone, fetch, pull, and push.")
 
 
 def qualify_compare(desktop, repo, evidence):
@@ -438,6 +439,99 @@ def qualify_workflows(desktop, repo, evidence):
     desktop.click("button[aria-label='Close comparison']")
     refresh(desktop)
     desktop.contains(".clean-preview", "No local changes")
+
+
+def context_click(desktop, selector, strategy="css selector"):
+    node = desktop.locate(selector, strategy)
+    desktop.send("POST", "/execute/sync", {
+        "script": "const box = arguments[0].getBoundingClientRect();"
+                  "arguments[0].dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true,"
+                  " clientX: box.left + 8, clientY: box.top + 8, button: 2}));",
+        "args": [{ELEMENT: node}]})
+
+
+def menu_item(desktop, label):
+    return f"//div[@role='menu']//button[@role='menuitem'][normalize-space()={json.dumps(label, ensure_ascii=False)}]"
+
+
+def trash_file(name):
+    data = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local/share")
+    return Path(data) / "Trash/files" / name
+
+
+def qualify_context_menus(desktop, repo, evidence):
+    # Right-clicking the current repository shows GitHub Desktop's repository actions.
+    desktop.send("POST", "/execute/sync", {"script": "document.querySelector('button[aria-label=\"Dismiss error\"]')?.click();", "args": []})
+    context_click(desktop, ".repository-control")
+    if evidence:
+        desktop.screenshot(evidence / "ctx-repository.png")
+    for label in ("Copy repo name", "Copy repo path", "Open in Terminal", "Show in your File Manager", "Remove…"):
+        desktop.locate(menu_item(desktop, label), "xpath")
+    view = desktop.locate(menu_item(desktop, "View on GitHub"), "xpath")
+    assert desktop.send("GET", f"/element/{view}/enabled") is False
+    desktop.click(menu_item(desktop, "Copy repo name"), "xpath")
+    assert not desktop.send("POST", "/execute/sync", {"script": "return Boolean(document.querySelector('[role=menu]'));", "args": []})
+    banner = desktop.send("POST", "/execute/sync", {"script": "return document.querySelector('.banner[role=alert]')?.textContent ?? '';", "args": []})
+    assert not banner, banner
+
+    # File rows: ignore a path, discard a tracked edit, and trash an untracked file.
+    desktop.click(".file-panel .view-tab[aria-label='Changes']")
+    (repo / "scratch.log").write_text("noise\n")
+    (repo / "notes.txt").write_text("edit to discard\n")
+    (repo / "junk.tmp").write_text("recoverable\n")
+    refresh(desktop)
+    row = "//div[contains(@class,'file-row')][.//button[@title='%s']]"
+    context_click(desktop, row % "scratch.log", "xpath")
+    if evidence:
+        desktop.screenshot(evidence / "ctx-changes.png")
+    desktop.click(menu_item(desktop, "Ignore file (add to .gitignore)"), "xpath")
+    eventually(lambda: "scratch.log" in (repo / ".gitignore").read_text())
+
+    context_click(desktop, row % "notes.txt", "xpath")
+    desktop.click(menu_item(desktop, "Discard changes…"), "xpath")
+    desktop.contains("dialog[open]", "Are you sure you want to discard all changes to")
+    desktop.click("dialog[open] button.danger-fill")
+    eventually(lambda: (repo / "notes.txt").read_text() != "edit to discard\n")
+    assert trash_file("notes.txt").read_text() == "edit to discard\n"
+
+    context_click(desktop, row % "junk.tmp", "xpath")
+    desktop.click(menu_item(desktop, "Discard changes…"), "xpath")
+    desktop.click("dialog[open] button.danger-fill")
+    eventually(lambda: not (repo / "junk.tmp").exists())
+    assert trash_file("junk.tmp").read_text() == "recoverable\n"
+
+    context_click(desktop, ".file-list[aria-label='Changed files']")
+    desktop.locate(menu_item(desktop, "Discard all changes…"), "xpath")
+    desktop.send("POST", "/execute/sync", {"script": "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));", "args": []})
+    (repo / ".gitignore").unlink(missing_ok=True)
+    (repo / "scratch.log").unlink(missing_ok=True)
+    refresh(desktop)
+
+    # History lists the commit's files and offers commit actions.
+    desktop.click(".file-panel .view-tab[aria-label='History']")
+    desktop.contains(".commit-files", ".txt")
+    desktop.contains(".commit-summary", "changed file")
+    second = git(repo, "rev-parse", "HEAD~1")
+    context_click(desktop, "(//button[contains(@class,'history-item')])[2]", "xpath")
+    if evidence:
+        desktop.screenshot(evidence / "ctx-history.png")
+    desktop.click(menu_item(desktop, "Create branch from commit"), "xpath")
+    desktop.enter("dialog[open] input", "from-history")
+    desktop.click("dialog[open] button.primary")
+    eventually(lambda: git(repo, "branch", "--show-current") == "from-history")
+    assert git(repo, "rev-parse", "HEAD") == second
+    git(repo, "switch", "main")
+    refresh(desktop)
+    desktop.click(".file-panel .view-tab[aria-label='History']")
+    head = git(repo, "rev-parse", "HEAD")
+    context_click(desktop, "(//button[contains(@class,'history-item')])[1]", "xpath")
+    checkout = desktop.locate(menu_item(desktop, "Checkout commit"), "xpath")
+    assert desktop.send("GET", f"/element/{checkout}/enabled") is False
+    desktop.click(menu_item(desktop, "Revert changes in commit"), "xpath")
+    eventually(lambda: git(repo, "log", "-1", "--format=%s").startswith("Revert"))
+    git(repo, "reset", "--hard", head)
+    refresh(desktop)
+    desktop.click(".file-panel .view-tab[aria-label='Changes']")
 
 
 def qualify_branch_workflows(desktop, repo, origin):

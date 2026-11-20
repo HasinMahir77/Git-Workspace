@@ -26,4 +26,12 @@ export const RECOVERY_COPY: Record<IntegrationKind, { title: string; continueLab
     hasSkip: true,
     abortNote: "Aborting keeps the destination branch checked out.",
   },
+  revert: {
+    title: "Revert in progress",
+    continueLabel: "Continue revert",
+    abortLabel: "Abort revert",
+    discardLabel: "Discard revert",
+    keepLabel: "Keep going",
+    hasSkip: true,
+  },
 };

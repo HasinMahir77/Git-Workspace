@@ -6,7 +6,10 @@ use std::{
 use git_gui_core::{Execution, Operation, Repository, RepositoryInfo};
 use tauri::{State, ipc::Channel};
 
-use crate::{commands::blocking, repositories::Repositories};
+use crate::{
+    commands::{blocking, trash_directory},
+    repositories::Repositories,
+};
 
 const MAX_OUTPUT_BYTES: usize = 256 * 1024;
 
@@ -29,7 +32,14 @@ pub async fn run_operation(
             Operation::Unstage { id } => repository.unstage(&id),
             Operation::Commit { summary, body } => repository.commit(&summary, &body, execution),
             Operation::SwitchBranch { branch } => repository.switch(&branch, false, execution),
-            Operation::CreateBranch { branch } => repository.switch(&branch, true, execution),
+            Operation::CreateBranch { branch, start } => match start {
+                Some(commit) => repository.create_branch_at(&branch, &commit, execution),
+                None => repository.switch(&branch, true, execution),
+            },
+            Operation::Discard { id } => repository.discard(&id, &trash_directory()?),
+            Operation::AddToGitignore { pattern } => repository.add_to_gitignore(&pattern),
+            Operation::RevertCommit { commit } => repository.revert_commit(&commit, execution),
+            Operation::CheckoutCommit { commit } => repository.checkout_commit(&commit, execution),
             Operation::Fetch { remote } => repository.fetch(&remote, execution),
             Operation::Pull => repository.pull(execution),
             Operation::Merge { other, expected_id } => {
