@@ -9,7 +9,7 @@ Create a local repository, open a checkout, or clone a repository. Review staged
 Install the generated `.deb` with Ubuntu's package installer or run:
 
 ```sh
-sudo apt install "./src-tauri/target/release/bundle/deb/Git Workspace_0.4.0_amd64.deb"
+sudo apt install "./src-tauri/target/release/bundle/deb/Git Workspace_0.5.0_amd64.deb"
 ```
 
 Open **Git Workspace** in the app launcher. If your shell sets up tools for a repo's hooks, you can also launch the app by running `git-workspace` from that terminal.
