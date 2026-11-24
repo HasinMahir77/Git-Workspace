@@ -16,7 +16,7 @@ export function useWorkspace() {
   const [hasOutputOpen, setHasOutputOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [fetchTimes, setFetchTimes] = useState<Record<string, string>>({});
+  const [fetchTimes, setFetchTimes] = useState<Record<string, number>>({});
   const isRunning = useRef(false);
   const selected = repositories.entries.find((entry) => entry.id === repositories.selected);
   const repo = selected?.id;
@@ -138,7 +138,7 @@ export function useWorkspace() {
     setCancelTarget(null);
     setIsCancelling(false);
     if (result && (request.type === "fetch" || request.type === "pull")) {
-      setFetchTimes((times) => ({ ...times, [repo]: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) }));
+      setFetchTimes((times) => ({ ...times, [repo]: Date.now() }));
     }
     return Boolean(result);
   }

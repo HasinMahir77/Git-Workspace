@@ -101,7 +101,6 @@ export function ComparePanel({ repo, current, upstream, revision, isBusy, isDirt
           {comparison.mergeBase === null && <div className="banner" role="alert">
             <p>These branches share no history, so there is no merge base to compare from.</p></div>}
           <DiffPanel isHistory title={`Changes in ${comparison.other}`} detail={mergeBaseLabel(comparison.mergeBase)}
-            sides={[mergeBaseLabel(comparison.mergeBase).replace(/ [0-9a-f]{8}$/, ""), comparison.other]}
             patch={comparison.diff} />
         </div>
       )}

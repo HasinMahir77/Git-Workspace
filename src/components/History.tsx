@@ -157,6 +157,7 @@ export function History({ sidebar, repo, revision, tabs, current, isBusy, isDirt
           </div>
           <DiffPanel isHistory={false} title={file ? (file.originalPath ? `${file.originalPath} → ${file.path}` : file.path) : commit ? undefined : undefined}
             patch={diffKey && preview?.key === diffKey ? preview.patch : null} error={diffKey && preview?.key === diffKey ? preview.error : undefined}
+            fileStatus={file ? { kind: FILE_KINDS[file.status] ?? "modified", label: FILE_STATES[file.status] ?? file.status } : undefined}
             emptyTitle={commit && commitFiles?.length === 0 ? "No files changed" : undefined} />
         </div>
       </section>

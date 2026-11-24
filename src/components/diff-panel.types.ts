@@ -1,4 +1,14 @@
 import type { ReactNode } from "react";
+import type { FileKind } from "./changes.constants";
+
+export type StagingVerb = "Stage" | "Unstage";
+
+export type HunkAction = {
+  verb: StagingVerb;
+  isDisabled: boolean;
+  toggleHunk: (index: number, header: string) => void;
+  toggleLines: (index: number, header: string, lines: number[]) => void;
+};
 
 export type Props = {
   title?: string;
@@ -9,6 +19,6 @@ export type Props = {
   error?: string;
   isHistory?: boolean;
   isStaged?: boolean;
-  sides?: [string, string];
-  hunkAction?: { label: string; isDisabled: boolean; run: (index: number, header: string) => void };
+  fileStatus?: { kind: FileKind; label: string };
+  hunkAction?: HunkAction;
 };

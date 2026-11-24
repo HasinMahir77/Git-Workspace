@@ -1,6 +1,6 @@
 import { REPOSITORIES_KEY } from "./workspace.constants";
 import type { Status, SyncState } from "./bindings";
-import type { DialogKind, Theme } from "./workspace.types";
+import type { Theme } from "./workspace.types";
 
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -13,23 +13,6 @@ export function readSavedPaths(): string[] {
   } catch {
     return [];
   }
-}
-
-export function syncAction(status: Status, sync: SyncState): { kind: DialogKind | "pull"; label: string } | null {
-  if (sync.remotes.length === 0) return null;
-  if (status.branch && !status.isUnborn) {
-    if (!sync.hasConfiguredUpstream) return { kind: "publish", label: "Publish branch" };
-    const target = sync.pushTarget;
-    if (target && sync.pushAhead !== null && sync.pushAhead > 0) {
-      const destination = `${target.remote}/${target.reference.slice("refs/heads/".length)}`;
-      if (destination !== status.upstream) return { kind: "push", label: "Push" };
-    }
-    if (status.hasUpstreamRef && status.behind > 0 && status.ahead === 0) return { kind: "pull", label: "Pull" };
-    if (sync.pushTarget && status.hasUpstreamRef && status.behind === 0 && sync.pushAhead !== 0) {
-      return { kind: "push", label: "Push" };
-    }
-  }
-  return { kind: "fetch", label: "Fetch" };
 }
 
 export function upstreamLabel(status: Status, sync: SyncState | null): string {

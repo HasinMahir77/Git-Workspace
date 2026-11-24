@@ -390,7 +390,7 @@ def qualify_compare(desktop, repo, evidence):
     desktop.click("//option[normalize-space()='compare-target']", "xpath")
     desktop.contains(".compare-commits", "fix(DESK-101): target work")
     desktop.contains(".diff-scroll", "Only on the target")
-    desktop.contains(".diff-heading", "Merge base")
+    desktop.contains(".diff-header", "Merge base")
     assert git(repo, "branch", "--show-current") == "main"
     if evidence:
         desktop.screenshot(evidence / "compare.png")
@@ -405,7 +405,7 @@ def compare_with(desktop, branch):
     desktop.click("button[aria-label='Branches']")
     desktop.button("Compare branches…")
     desktop.click(f"//option[normalize-space()='{branch}']", "xpath")
-    desktop.contains(".diff-heading", "Merge base")
+    desktop.contains(".diff-header", "Merge base")
 
 
 def refresh(desktop):
@@ -438,7 +438,7 @@ def qualify_workflows(desktop, repo, evidence):
     (repo / "doc.txt").write_text("\n".join(lines) + "\n")
     refresh(desktop)
     desktop.contains(".diff-scroll", "second edit")
-    desktop.click("(//button[normalize-space()='Stage hunk'])[2]", "xpath")
+    desktop.click("(//button[@aria-label='Stage hunk'])[2]", "xpath")
     eventually(lambda: "second edit" in git(repo, "diff", "--cached"))
     assert "first edit" not in git(repo, "diff", "--cached")
     assert "first edit" in git(repo, "diff")
@@ -684,7 +684,7 @@ def pick_onto(desktop, branch):
 def qualify_layout(desktop, evidence):
     probe = """
       const app = document.scrollingElement;
-      const heading = document.querySelector('.diff-heading')?.getBoundingClientRect();
+      const heading = document.querySelector('.diff-header')?.getBoundingClientRect();
       const area = document.querySelector('.work-area').getBoundingClientRect();
       const diff = document.querySelector('.diff-panel').getBoundingClientRect();
       const list = document.querySelector('.file-list');

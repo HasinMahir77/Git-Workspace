@@ -1,4 +1,4 @@
-import { Check, GitBranch, GitCompare, Plus, Search } from "lucide-react";
+import { CheckIcon, GitBranchIcon, GitCompareIcon, PlusIcon, SearchIcon } from "@primer/octicons-react";
 import { useEffect, useRef, useState } from "react";
 import { git } from "../git/client";
 import { messageOf } from "../git/workspace.helpers";
@@ -44,15 +44,15 @@ export function BranchMenu({ repo, current, isBusy, close, run, compare }: Branc
       <div className="branch-menu-heading"><strong>Branches</strong></div>
       {error && <p role="alert" className="dialog-error">{error}</p>}
       <div className="branch-menu-search">
-        <span className="branch-search"><Search size={16} aria-hidden="true" />
+        <span className="branch-search"><SearchIcon aria-hidden="true" />
           <input className="field" type="search" aria-label="Filter branches" placeholder="Filter branches"
             autoFocus value={query} onChange={(event) => setQuery(event.target.value)} />
         </span>
         <button className="button" disabled={isBusy} onClick={() => setIsCreating((value) => !value)}>
-          <Plus size={15} /> New branch
+          <PlusIcon /> New branch
         </button>
         <button className="button" disabled={isBusy} onClick={() => { close(); compare(); }}>
-          <GitCompare size={15} /> Compare branches…
+          <GitCompareIcon /> Compare branches…
         </button>
       </div>
       {isCreating && (
@@ -73,7 +73,7 @@ export function BranchMenu({ repo, current, isBusy, close, run, compare }: Branc
         {local?.map((branch) => (
           <button className="branch-item" key={branch} disabled={isBusy} aria-current={branch === current ? "true" : undefined}
             onClick={() => { if (branch !== current) void run({ type: "switchBranch", branch }, "Switch branch"); close(); }}>
-            {branch === current ? <Check size={15} aria-hidden="true" /> : <GitBranch size={15} aria-hidden="true" />}
+            {branch === current ? <CheckIcon aria-hidden="true" /> : <GitBranchIcon aria-hidden="true" />}
             <span className="truncate">{branch}</span>
           </button>
         ))}
@@ -82,7 +82,7 @@ export function BranchMenu({ repo, current, isBusy, close, run, compare }: Branc
           <button className="branch-item" key={branch} disabled={isBusy}
             title={`Creates local branch ${localNameFor(branch)} tracking ${branch}`}
             onClick={() => { void run({ type: "checkoutRemote", remoteBranch: branch }, "Check out remote branch"); close(); }}>
-            <GitBranch size={15} aria-hidden="true" />
+            <GitBranchIcon aria-hidden="true" />
             <span className="truncate">{branch}</span>
             <small className="muted truncate">{branches?.local.includes(localNameFor(branch)) ? "use local" : `new ${localNameFor(branch)}`}</small>
           </button>

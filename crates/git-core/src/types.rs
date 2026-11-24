@@ -159,6 +159,18 @@ pub enum Operation {
         index: u32,
         header: String,
     },
+    StageLines {
+        id: String,
+        index: u32,
+        header: String,
+        lines: Vec<u32>,
+    },
+    UnstageLines {
+        id: String,
+        index: u32,
+        header: String,
+        lines: Vec<u32>,
+    },
     ContinueIntegration,
     AbortIntegration,
     SkipIntegration,

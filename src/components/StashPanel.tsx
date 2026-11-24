@@ -1,4 +1,4 @@
-import { Archive } from "lucide-react";
+import { StackIcon } from "@primer/octicons-react";
 import { useEffect, useState } from "react";
 import { git } from "../git/client";
 import type { StashEntry } from "../git/bindings";
@@ -23,7 +23,7 @@ export function StashPanel({ repo, revision, isBusy, hasChanges, run }: StashPan
   return (
     <section className="stash-panel" aria-label="Stashes">
       <div className="stash-heading">
-        <Archive size={14} aria-hidden="true" />
+        <StackIcon aria-hidden="true" />
         <strong>Stashed changes</strong>
         <span className="count">{stashes.length}</span>
         <span className="spacer" />

@@ -30,7 +30,7 @@ Right-click works like GitHub Desktop. On the current repository (or any reposit
 
 ## Stash and hunks
 
-**Stash changes…** in Changes stashes work, with an explicit **Include untracked files** option. **Restore** applies a stash with its staging and keeps it until you drop it. **Stage hunk** and **Unstage hunk** appear in the diff for text changes to tracked files. Untracked, binary, renamed, and conflicted files use the whole-file buttons.
+**Stash changes…** in Changes stashes work, with an explicit **Include untracked files** option. **Restore** applies a stash with its staging and keeps it until you drop it. To stage or unstage part of a tracked text file, click a changed line's line numbers, or drag down them to take several lines of the same hunk at once. Click the handle beside a change, or the gutter of its `@@` header row, to take the whole hunk. Blue line numbers mark staged changes. Untracked, binary, renamed, and conflicted files use the whole-file checkboxes. The gear in the diff header switches between the unified and split diff.
 
 ## Sidebars
 

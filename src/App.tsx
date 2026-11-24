@@ -1,13 +1,15 @@
+import { GearIcon, GitBranchIcon, PlusIcon, RedoIcon, RepoIcon, TerminalIcon } from "@primer/octicons-react";
 import {
-  AlertCircle, ArrowDown, ArrowUp, ChevronDown, Download, FileDiff, FolderGit2, FolderOpen, FolderPlus,
-  GitBranch, GitCommitHorizontal, LoaderCircle, Plus, RefreshCw, Settings, SquareTerminal, X,
+  AlertCircle, ChevronDown, Download, FileDiff, FolderGit2, FolderOpen, FolderPlus, GitCommitHorizontal, LoaderCircle, SquareTerminal, X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AccountAvatar } from "./accounts/AccountAvatar";
 import { useGitHubAccounts } from "./accounts/useGitHubAccounts";
 import { BranchMenu } from "./components/BranchMenu";
 import { ComparePanel } from "./components/ComparePanel";
 import { RecoveryBar } from "./components/RecoveryBar";
+import { SyncButton } from "./components/SyncButton";
+import { ToolbarButton } from "./components/ToolbarButton";
 import { Changes } from "./components/Changes";
 import { History } from "./components/History";
 import { RepositoryPicker } from "./components/RepositoryPicker";
@@ -19,7 +21,8 @@ import { DiffViewContext } from "./git/DiffViewContext";
 import { DIFF_VIEW_KEY } from "./git/diff-view.constants";
 import type { DiffView } from "./git/diff-view.types";
 import { EMPTY_DRAFT, THEME_KEY } from "./git/workspace.constants";
-import { getTheme, messageOf, syncAction, upstreamLabel } from "./git/workspace.helpers";
+import { syncAction } from "./git/sync.helpers";
+import { getTheme, messageOf, upstreamLabel } from "./git/workspace.helpers";
 import type { DialogKind, Draft, View } from "./git/workspace.types";
 import { useRepositoryMenu } from "./git/useRepositoryMenu";
 import { useRecovery } from "./git/useRecovery";
@@ -61,6 +64,7 @@ export function App() {
   }, [theme]);
 
   useEffect(() => { localStorage.setItem(DIFF_VIEW_KEY, diffView); }, [diffView]);
+  const diffViewSetting = useMemo(() => ({ diffView, changeDiffView: setDiffView }), [diffView]);
 
   useEffect(() => {
     const output = outputBox.current;
@@ -134,7 +138,6 @@ export function App() {
     else showDialog(action.kind);
   }
 
-  const SyncIcon = action?.kind === "pull" ? ArrowDown : action?.kind === "push" || action?.kind === "publish" ? ArrowUp : RefreshCw;
   const hasBranch = Boolean(status?.branch);
   const branch = status?.branch ?? (status ? "Detached HEAD" : "Reading branch…");
   const viewTabs = (
@@ -150,67 +153,54 @@ export function App() {
   );
 
   return (
-    <DiffViewContext.Provider value={diffView}><div className="app-frame">
+    <DiffViewContext.Provider value={diffViewSetting}><div className="app-frame">
       <div className="workspace-page" hidden={settings !== null}>
         <header className="workspace-bar" aria-label="Workspace toolbar" style={sidebar.layout}>
-          <h1 className={`repository-heading truncate${sidebar.isCollapsed ? " is-folded" : ""}`}>
-            <button className="toolbar-cell repository-control" aria-label="Switch repository" title="Switch repository (Ctrl+K)"
+          <h1 className={`repository-heading${sidebar.isCollapsed ? " is-folded" : ""}`}>
+            <ToolbarButton className="repository-control" layout="subtitle" isDropdown icon={<RepoIcon />}
+              text={repo?.name ?? "Choose a repository"} description="Current repository"
+              aria-label="Switch repository" title={repo ? `${repo.path} (Ctrl+K)` : "Switch repository (Ctrl+K)"}
               onClick={() => setIsPickerOpen((value) => !value)} disabled={isRestoring}
-              onContextMenu={(event) => { if (repo) repositoryMenu.show(event, repo); }} aria-expanded={isPickerOpen} aria-controls="repository-picker">
-              <FolderGit2 size={18} aria-hidden="true" />
-              <span className="toolbar-text truncate"><small>Current repository</small><strong className="truncate" title={repo?.path}>{repo?.name ?? "Choose a repository"}</strong></span>
-              <ChevronDown size={14} aria-hidden="true" />
-            </button>
+              onContextMenu={(event) => { if (repo) repositoryMenu.show(event, repo); }} aria-expanded={isPickerOpen} aria-controls="repository-picker" />
           </h1>
           {isPickerOpen && <RepositoryPicker entries={workspace.entries} selected={repo?.id} choose={chooseRepo}
             open={() => showDialog("open")} clone={() => showDialog("clone")} init={() => showDialog("init")}
             close={() => setIsPickerOpen(false)} isBusy={isBusy} showMenu={repositoryMenu.show} />}
           <div className="bar-divider" aria-hidden="true" />
           <div className="workspace-bar-main">
-          {repo && (
-            <>
-              <div className="branch-anchor">
-              <button ref={branchButton} className="toolbar-cell branch-control" aria-label="Branches" title={hasBranch && status ? upstreamLabel(status, sync ?? null) : branch}
-                disabled={isBusy || !status} onClick={() => setIsBranchOpen((value) => !value)} aria-expanded={isBranchOpen} aria-controls="branch-menu">
-                <GitBranch size={17} aria-hidden="true" />
-                <span className="toolbar-text truncate">
-                  <small className="truncate">{status?.upstream ? upstreamLabel(status, sync ?? null) : "Current branch"}</small>
-                  <strong className="truncate">{branch}</strong>
-                </span>
-                <ChevronDown size={14} aria-hidden="true" />
-              </button>
-              {isBranchOpen && <BranchMenu repo={repo.id} current={status?.branch ?? null} isBusy={isBusy || isPaused}
-                close={closeBranchMenu} run={workspace.mutate} compare={() => setIsComparing(true)} />}
-              </div>
-              <span className="spacer" />
-              {action && <button className="toolbar-cell sync-control" disabled={isBusy} onClick={activateSync} aria-label={action.label}>
-                <SyncIcon size={17} aria-hidden="true" />
-                <span className="toolbar-text truncate"><strong>{action.label}</strong>
-                  {workspace.lastFetch && <small className="truncate">Fetched at {workspace.lastFetch}</small>}
-                </span>
-              </button>}
-              {sync?.remotes.length === 0 && <button className="toolbar-cell sync-control" disabled={isBusy}
-                onClick={() => showDialog("addRemote")}><Plus size={16} aria-hidden="true" /><strong>Add remote</strong></button>}
-            </>
-          )}
-          {!repo && <span className="spacer" />}
-          {repo && (
-            <div className="toolbar-tools row" aria-label="Repository tools">
-              {action && action.kind !== "fetch" && <button className="button icon subtle" disabled={isBusy} onClick={fetchRemote} title="Fetch" aria-label="Fetch"><Download size={16} /></button>}
-              <button className="button icon subtle" disabled={isBusy} onClick={workspace.refresh} title="Refresh working tree" aria-label="Refresh working tree"><RefreshCw size={16} /></button>
-              <button className="button icon subtle" title="Open in Terminal" aria-label="Open in Terminal" onClick={openTerminal}><SquareTerminal size={16} /></button>
-            </div>
-          )}
-          <div className="toolbar-tools toolbar-settings row">
-            <button className="button icon subtle account-trigger" aria-label="Manage GitHub accounts"
+            {repo && (
+              <>
+                <div className="branch-anchor">
+                  <ToolbarButton ref={branchButton} className="branch-control" layout="subtitle" isDropdown icon={<GitBranchIcon />}
+                    text={branch} description="Current branch" aria-label="Branches"
+                    title={hasBranch && status ? upstreamLabel(status, sync ?? null) : branch}
+                    disabled={isBusy || !status} onClick={() => setIsBranchOpen((value) => !value)} aria-expanded={isBranchOpen} aria-controls="branch-menu" />
+                  {isBranchOpen && <BranchMenu repo={repo.id} current={status?.branch ?? null} isBusy={isBusy || isPaused}
+                    close={closeBranchMenu} run={workspace.mutate} compare={() => setIsComparing(true)} />}
+                </div>
+                {action && status ? <SyncButton action={action} status={status} fetchRemote={sync?.fetchRemote ?? null}
+                  lastFetch={workspace.lastFetch} isBusy={isBusy} activate={activateSync} fetch={fetchRemote} /> : null}
+                {sync?.remotes.length === 0 ? <div className="toolbar-sync">
+                  <ToolbarButton className="sync-control" icon={<PlusIcon />} text="Add remote" description="No remote configured"
+                    disabled={isBusy} onClick={() => showDialog("addRemote")} />
+                </div> : null}
+              </>
+            )}
+            <span className="spacer" />
+            {repo ? (
+              <>
+                <button type="button" className="toolbar-icon-button" disabled={isBusy} onClick={workspace.refresh} title="Refresh working tree" aria-label="Refresh working tree"><RedoIcon /></button>
+                <button type="button" className="toolbar-icon-button" title="Open in Terminal" aria-label="Open in Terminal" onClick={openTerminal}><TerminalIcon /></button>
+              </>
+            ) : null}
+            <button type="button" className="toolbar-icon-button account-trigger" aria-label="Manage GitHub accounts"
               title={accounts.active?.login ? `GitHub account: ${accounts.active.login}` : "GitHub accounts"}
               onClick={() => setSettings("accounts")}>
               <AccountAvatar login={accounts.active?.login} />
-              {accounts.active?.login && <span className="sr-only">{accounts.active.login}</span>}
+              {accounts.active?.login ? <span className="sr-only">{accounts.active.login}</span> : null}
             </button>
-            <button className="button icon subtle" ref={settingsButton} aria-label="Settings" title="Settings (Ctrl+,)"
-              onClick={() => setSettings("appearance")}><Settings size={18} /></button>
-          </div>
+            <button type="button" className="toolbar-icon-button" ref={settingsButton} aria-label="Settings" title="Settings (Ctrl+,)"
+              onClick={() => setSettings("appearance")}><GearIcon /></button>
           </div>
         </header>
         <div className="shell">
@@ -270,10 +260,6 @@ export function App() {
             )}
           </main>
         </div>
-        {repo && <footer className="checkout-status" aria-label="Checkout status">
-          <span className="row truncate" title={repo.path}><FolderGit2 size={14} aria-hidden="true" /><span className="truncate">{repo.path}</span></span>
-          {status && <span className="row truncate"><GitBranch size={14} aria-hidden="true" /><span className="truncate">{upstreamLabel(status, sync ?? null)}</span></span>}
-        </footer>}
       </div>
       {repositoryMenu.node}
       {settings && <SettingsPage section={settings} selectSection={setSettings} close={closeSettings}

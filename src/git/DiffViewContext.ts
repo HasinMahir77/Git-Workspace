@@ -1,4 +1,4 @@
 import { createContext } from "react";
-import type { DiffView } from "./diff-view.types";
+import type { DiffViewSetting } from "./diff-view.types";
 
-export const DiffViewContext = createContext<DiffView>("split");
+export const DiffViewContext = createContext<DiffViewSetting>({ diffView: "unified", changeDiffView: () => undefined });

@@ -1,4 +1,4 @@
-import { Check, GitCommitHorizontal, SquareTerminal } from "lucide-react";
+import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { git } from "../git/client";
@@ -146,21 +146,26 @@ export function Changes({ sidebar, repo, repositoryPath, status, revision, isBus
       files.length === 0 ? (
         <section className="diff-panel clean-preview" aria-label="Working tree status">
           <div className="clean-card">
-            <div className="clean-mark"><Check size={22} aria-hidden="true" /></div>
             <h2>No local changes</h2>
-            <p className="muted">Your working tree is clean.</p>
-            <div className="row">
-              <button className="button" onClick={viewHistory}><GitCommitHorizontal size={16} /> View history</button>
-              <button className="button" onClick={openTerminal}><SquareTerminal size={16} /> Open in Terminal</button>
+            <p className="muted">There are no uncommitted changes in this repository.</p>
+            <div className="suggested-action">
+              <div><strong>View the history of this branch</strong><p className="muted">See the commits on {status.branch ?? "this checkout"} and the files each one changed.</p></div>
+              <button className="button" onClick={viewHistory}>View history</button>
+            </div>
+            <div className="suggested-action">
+              <div><strong>Open the repository in Terminal</strong><p className="muted">Run Git commands that need a terminal prompt.</p></div>
+              <button className="button" onClick={openTerminal}>Open in Terminal</button>
             </div>
           </div>
         </section>
       ) :
         <DiffPanel title={file ? (file.originalPath ? `${file.originalPath} → ${file.path}` : file.path) : undefined}
-          isStaged={isStaged} actions={sideActions}
+          isStaged={isStaged} actions={sideActions} fileStatus={file ? { kind: fileKind(file), label: fileStateLabel(file) } : undefined}
           hunkAction={file && !file.hasConflict && !file.originalPath && (isStaged ? file.staged : file.unstaged) !== "?" ? {
-            label: isStaged ? "Unstage hunk" : "Stage hunk", isDisabled: isBusy,
-            run: (index, header) => void run({ type: isStaged ? "unstageHunk" : "stageHunk", id: file.id, index, header }, isStaged ? "Unstage hunk" : "Stage hunk"),
+            verb: isStaged ? "Unstage" : "Stage", isDisabled: isBusy,
+            toggleHunk: (index, header) => void run({ type: isStaged ? "unstageHunk" : "stageHunk", id: file.id, index, header }, isStaged ? "Unstage hunk" : "Stage hunk"),
+            toggleLines: (index, header, lines) => void run({ type: isStaged ? "unstageLines" : "stageLines", id: file.id, index, header, lines },
+              isStaged ? "Unstage lines" : "Stage lines"),
           } : undefined}
           patch={preview?.key === key ? preview.patch : null} error={preview?.key === key ? preview.error : undefined} />
     }>
@@ -201,7 +206,7 @@ export function Changes({ sidebar, repo, repositoryPath, status, revision, isBus
         </label>
         {hasConflict && <small>Resolve conflicts in your editor or terminal.</small>}
         <button type="submit" className="button primary" disabled={isBusy || hasConflict || !draft.summary.trim() || staged.length === 0}>
-          Commit{status.branch ? ` to ${status.branch}` : ""}
+          {status.branch ? <>Commit to <strong>{status.branch}</strong></> : "Commit"}
         </button>
       </form>
       {menu.node}

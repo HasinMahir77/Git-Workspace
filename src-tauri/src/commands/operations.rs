@@ -67,6 +67,12 @@ pub async fn run_operation(
             Operation::UnstageHunk { id, index, header } => {
                 repository.unstage_hunk(&id, index as usize, &header)
             }
+            Operation::StageLines { id, index, header, lines } => {
+                repository.stage_lines(&id, index as usize, &header, &lines)
+            }
+            Operation::UnstageLines { id, index, header, lines } => {
+                repository.unstage_lines(&id, index as usize, &header, &lines)
+            }
             Operation::ContinueIntegration => repository.continue_integration(execution),
             Operation::AbortIntegration => repository.abort_integration(execution),
             Operation::SkipIntegration => repository.skip_integration(execution),
