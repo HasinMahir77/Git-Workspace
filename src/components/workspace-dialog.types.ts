@@ -3,7 +3,6 @@ import type { DialogKind, RunOperation } from "../git/workspace.types";
 
 export type Props = {
   kind: DialogKind;
-  repo?: string;
   status?: Status | null;
   sync?: SyncState | null;
   isBusy: boolean;
@@ -11,5 +10,6 @@ export type Props = {
   close: () => void;
   open: (path: string) => Promise<boolean>;
   clone: (path: string, name: string, source: string) => Promise<boolean>;
+  init: (path: string, name: string) => Promise<boolean>;
   run: RunOperation;
 };

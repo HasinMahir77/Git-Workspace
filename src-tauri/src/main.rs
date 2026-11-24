@@ -8,6 +8,7 @@ fn main() {
         .manage(commands::AccountActions::default())
         .invoke_handler(tauri::generate_handler![
             commands::open_repository,
+            commands::init_repository,
             commands::clone_repository,
             commands::get_status,
             commands::get_sync_state,

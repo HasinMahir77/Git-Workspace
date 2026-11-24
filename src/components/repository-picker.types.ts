@@ -7,6 +7,7 @@ export type RepositoryPickerProps = {
   choose: (id: string) => void;
   open: () => void;
   clone: () => void;
+  init: () => void;
   close: () => void;
   showMenu: (event: MouseEvent, entry: RepositoryInfo) => void;
   isBusy: boolean;

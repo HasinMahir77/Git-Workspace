@@ -120,6 +120,10 @@ pub enum Operation {
     Fetch {
         remote: String,
     },
+    AddRemote {
+        name: String,
+        url: String,
+    },
     Pull,
     Merge {
         other: String,

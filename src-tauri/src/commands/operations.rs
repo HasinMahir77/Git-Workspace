@@ -41,6 +41,7 @@ pub async fn run_operation(
             Operation::RevertCommit { commit } => repository.revert_commit(&commit, execution),
             Operation::CheckoutCommit { commit } => repository.checkout_commit(&commit, execution),
             Operation::Fetch { remote } => repository.fetch(&remote, execution),
+            Operation::AddRemote { name, url } => repository.add_remote(&name, &url),
             Operation::Pull => repository.pull(execution),
             Operation::Merge { other, expected_id } => {
                 repository.merge(&other, &expected_id, execution)

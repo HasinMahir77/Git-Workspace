@@ -4,11 +4,14 @@ import base64
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import tempfile
 import time
 import urllib.error
 import urllib.request
+
+from git_http_fixture import authenticated_git_remote
 
 ELEMENT = "element-6066-11e4-a52e-4f735466cecf"
 
@@ -300,6 +303,76 @@ def run(desktop, root, evidence):
     qualify_settings(desktop, evidence)
     qualify_sidebars(desktop)
     print("Packaged Tauri smoke passed: checkout, diff, stage, hook rejection and cancellation, history, branches, compare, cherry-pick, hunk staging, stash, layout, rebase abort, merge conflict recovery, remote checkout, History cherry-pick, skipping an empty cherry-pick, stash conflict, context menus, publish, clone, fetch, pull, and push.")
+
+
+def qualify_git_credentials(desktop, root, evidence):
+    repo = root / "credential-checkout"
+    remote = root / "authenticated.git"
+    remote.mkdir()
+    git(remote, "init", "--bare", "--initial-branch=main")
+
+    desktop.click("button[aria-label='Switch repository']")
+    desktop.button("New repository")
+    desktop.enter("dialog[open] .row input", str(root))
+    desktop.enter("dialog[open] label:last-of-type input", repo.name)
+    desktop.button("Create repository")
+    desktop.contains("h1", repo.name)
+    assert git(repo, "rev-parse", "--is-inside-work-tree") == "true"
+    git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    git(repo, "config", "user.name", "Fixture")
+    git(repo, "config", "user.email", "fixture@example.test")
+    git(repo, "config", "commit.gpgsign", "false")
+
+    with authenticated_git_remote(root) as (origin, credential):
+        store = root / "git-test-credentials"
+        store.write_text(f"{credential}\n")
+        store.chmod(0o600)
+        git(repo, "config", "credential.helper", f"store --file={shlex.quote(str(store))}")
+        desktop.button("Add remote")
+        desktop.enter("dialog[open] label:last-of-type input", f"{origin}/{remote.name}")
+        desktop.click("dialog[open] button.primary")
+        desktop.click("button[aria-label='Refresh working tree']")
+        desktop.contains(".branch-control", "main")
+        (repo / "notes.txt").write_text("First commit\n")
+        desktop.click("button[aria-label='Refresh working tree']")
+        desktop.click("input[aria-label='Stage notes.txt']")
+        desktop.locate("input[aria-label='Unstage notes.txt']")
+        desktop.enter("input[name='commit-summary']", "Add notes")
+        desktop.button("Commit to main")
+        desktop.click(".sync-control[aria-label='Publish branch']")
+        desktop.click("dialog[open] button.primary")
+        desktop.contains(".branch-control", "origin/main")
+        assert git(remote, "rev-parse", "main") == git(repo, "rev-parse", "main")
+
+        upstream = root / "upstream.git"
+        upstream.mkdir()
+        git(upstream, "init", "--bare", "--initial-branch=main")
+        git(repo, "remote", "add", "upstream", str(upstream))
+        git(repo, "push", "upstream", "main")
+        git(repo, "branch", "--set-upstream-to=upstream/main")
+        git(repo, "config", "branch.main.pushRemote", "origin")
+        git(root, "clone", str(upstream), "peer-checkout")
+        peer = root / "peer-checkout"
+        git(peer, "config", "user.name", "Fixture")
+        git(peer, "config", "user.email", "fixture@example.test")
+        git(peer, "config", "commit.gpgsign", "false")
+        (peer / "notes.txt").write_text("Updated upstream\n")
+        git(peer, "commit", "-am", "Update upstream")
+        git(peer, "push")
+        git(repo, "fetch", "upstream")
+
+        (repo / "notes.txt").write_text("Updated fork\n")
+        git(repo, "commit", "-am", "Update notes")
+        desktop.click("button[aria-label='Refresh working tree']")
+        desktop.contains(".branch-control", "upstream/main · diverged")
+        desktop.click(".sync-control[aria-label='Push']")
+        desktop.contains("dialog[open]", "origin/main")
+        if evidence:
+            desktop.screenshot(evidence / "authenticated-push.png")
+        desktop.click("dialog[open] button.primary")
+        eventually(lambda: git(remote, "rev-parse", "main") == git(repo, "rev-parse", "main"))
+        assert git(upstream, "rev-parse", "main") == git(peer, "rev-parse", "main")
+    print("Configured Git credential helper passed: create, add remote, publish, and push to a fork with a diverged upstream.")
 
 
 def qualify_compare(desktop, repo, evidence):
@@ -735,6 +808,7 @@ def main():
         desktop = Desktop(args.server, args.binary.resolve())
         try:
             run(desktop, Path(folder), args.evidence)
+            qualify_git_credentials(desktop, Path(folder), args.evidence)
             if args.hooks_checkout:
                 qualify_hooks(desktop, args.hooks_checkout.resolve(), args.evidence)
             if args.auth_checkout:

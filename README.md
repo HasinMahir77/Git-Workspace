@@ -1,8 +1,8 @@
 # Git Workspace
 
-An Ubuntu desktop client that runs the installed Git executable. It uses the same Git configuration, credential helpers, SSH agent, signing tools, and hooks as your terminal. Open **Settings → Git environment** to see which tools the desktop session can find.
+An Ubuntu desktop client that runs the installed Git executable. It uses the Git configuration, credential helpers, SSH agent, signing tools, and hooks available to its desktop session. GitHub sign-in is optional for Git operations. Open **Settings → Git environment** to see which tools the desktop session can find.
 
-Open a checkout or clone a repository, review staged and unstaged changes, commit, browse history, switch branches, and sync with configured remotes. Pull uses fast-forward only. Push shows the destination and updates one branch. Git and hook output appears in the operation panel. Use **Open in Terminal** when Git needs a terminal prompt or a workflow such as rebasing a diverged branch.
+Create a local repository, open a checkout, or clone a repository. Review staged and unstaged changes, commit, browse history, switch branches, and sync with configured remotes. For a repository without a remote, choose **Add remote** in the toolbar. Pull uses fast-forward only. Push shows the destination and updates one branch, including when Git is configured to push to a fork and pull from upstream. Git and hook output appears in the operation panel. Use **Open in Terminal** when Git needs a terminal prompt or a workflow such as rebasing a diverged branch.
 
 ## Install on Ubuntu
 

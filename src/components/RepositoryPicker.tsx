@@ -1,8 +1,8 @@
-import { Check, Download, FolderGit2, FolderOpen, Search } from "lucide-react";
+import { Check, Download, FolderGit2, FolderOpen, FolderPlus, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { RepositoryPickerProps } from "./repository-picker.types";
 
-export function RepositoryPicker({ entries, selected, choose, open, clone, close, isBusy, showMenu }: RepositoryPickerProps) {
+export function RepositoryPicker({ entries, selected, choose, open, clone, init, close, isBusy, showMenu }: RepositoryPickerProps) {
   const [query, setQuery] = useState("");
   const panel = useRef<HTMLDivElement>(null);
   const search = query.trim().toLowerCase();
@@ -49,6 +49,7 @@ export function RepositoryPicker({ entries, selected, choose, open, clone, close
       <div className="repository-actions">
         <button className="button" disabled={isBusy} onClick={open}><FolderOpen size={16} aria-hidden="true" /> Open repository</button>
         <button className="button" disabled={isBusy} onClick={clone}><Download size={16} aria-hidden="true" /> Clone repository</button>
+        <button className="button" disabled={isBusy} onClick={init}><FolderPlus size={16} aria-hidden="true" /> New repository</button>
       </div>
     </div>
   );

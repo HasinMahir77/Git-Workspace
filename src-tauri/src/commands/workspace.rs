@@ -9,6 +9,16 @@ use tauri::State;
 use crate::{commands::blocking, repositories::Repositories};
 
 #[tauri::command]
+pub async fn init_repository(
+    parent: PathBuf,
+    name: String,
+    state: State<'_, Repositories>,
+) -> Result<RepositoryInfo, String> {
+    let repository = blocking(move || Repository::init_into(&parent, &name)).await?;
+    state.register(repository)
+}
+
+#[tauri::command]
 pub async fn open_repository(
     path: PathBuf,
     state: State<'_, Repositories>,

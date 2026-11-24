@@ -11,6 +11,7 @@ function outputChannel(emit: (line: string) => void) {
 export const git = {
   browse: () => open({ directory: true, multiple: false }),
   open: (path: string) => invoke<RepositoryInfo>("open_repository", { path }),
+  init: (parent: string, name: string) => invoke<RepositoryInfo>("init_repository", { parent, name }),
   clone: (parent: string, name: string, source: string, emit: (line: string) => void) =>
     invoke<RepositoryInfo>("clone_repository", { parent, name, source, output: outputChannel(emit) }),
   status: (repo: string) => invoke<Status>("get_status", { repo }),

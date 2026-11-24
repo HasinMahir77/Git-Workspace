@@ -4,6 +4,45 @@ use git_gui_core::{Execution, Repository};
 use support::Checkout;
 
 #[test]
+fn creates_an_unborn_repository_in_a_new_folder_and_refuses_to_reuse_it() {
+    let parent = tempfile::tempdir().unwrap();
+    let name = "release notes";
+    let repository = Repository::init_into(parent.path(), name).unwrap();
+
+    assert_eq!(repository.root(), parent.path().join(name));
+    assert!(repository.status().unwrap().is_unborn);
+    assert!(Repository::init_into(parent.path(), name).is_err());
+    assert!(Repository::init_into(parent.path(), "../outside").is_err());
+    assert!(repository.status().unwrap().files.is_empty());
+}
+
+#[test]
+fn adds_a_remote_that_can_publish_the_first_branch_without_overwriting_an_existing_remote() {
+    let checkout = Checkout::new();
+    let remote = tempfile::tempdir().unwrap();
+    support::git(remote.path(), &["init", "--bare", "--initial-branch=main"]);
+    support::commit_file(&checkout, "notes.txt", "to publish\n", "initial notes");
+    let repository = Repository::open(checkout.path()).unwrap();
+
+    repository
+        .add_remote("origin", remote.path().to_str().unwrap())
+        .unwrap();
+    assert!(
+        repository
+            .add_remote("origin", "git@example.test:org/repo.git")
+            .is_err()
+    );
+    assert_eq!(repository.sync_state().unwrap().remotes, ["origin"]);
+    repository
+        .push(Some("origin"), &Execution::new(&|_| {}))
+        .unwrap();
+    assert_eq!(
+        support::git(remote.path(), &["rev-parse", "main"]),
+        checkout.git(&["rev-parse", "main"])
+    );
+}
+
+#[test]
 fn opens_a_subdirectory_and_reports_untracked_changes_on_an_unborn_branch() {
     let checkout = Checkout::new();
     let nested = checkout.path().join("src");

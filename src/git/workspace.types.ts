@@ -10,5 +10,5 @@ export type Draft = { summary: string; body: string };
 export type Repositories = { entries: RepositoryInfo[]; selected: string | null };
 export type View = "changes" | "history";
 export type Theme = "system" | "light" | "dark";
-export type DialogKind = "open" | "clone" | "fetch" | "push" | "publish";
+export type DialogKind = "open" | "clone" | "init" | "addRemote" | "fetch" | "push" | "publish";
 export type RunOperation = (operation: Operation, label: string) => Promise<boolean>;

@@ -19,6 +19,11 @@ export function syncAction(status: Status, sync: SyncState): { kind: DialogKind 
   if (sync.remotes.length === 0) return null;
   if (status.branch && !status.isUnborn) {
     if (!sync.hasConfiguredUpstream) return { kind: "publish", label: "Publish branch" };
+    const target = sync.pushTarget;
+    if (target && sync.pushAhead !== null && sync.pushAhead > 0) {
+      const destination = `${target.remote}/${target.reference.slice("refs/heads/".length)}`;
+      if (destination !== status.upstream) return { kind: "push", label: "Push" };
+    }
     if (status.hasUpstreamRef && status.behind > 0 && status.ahead === 0) return { kind: "pull", label: "Pull" };
     if (sync.pushTarget && status.hasUpstreamRef && status.behind === 0 && sync.pushAhead !== 0) {
       return { kind: "push", label: "Push" };

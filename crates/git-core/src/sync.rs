@@ -7,6 +7,17 @@ const UNSUPPORTED_PUSH: &str =
     "Git has no supported single-branch push target. Use Open in Terminal.";
 
 impl Repository {
+    pub fn add_remote(&self, name: &str, url: &str) -> Result<(), String> {
+        if name.trim().is_empty() || url.trim().is_empty() || url.contains(['\r', '\n', '\0']) {
+            return Err("Enter a remote name and a Git URL or local path.".into());
+        }
+        if url.starts_with("ext::") {
+            return Err("Enter a Git URL or local path for the remote.".into());
+        }
+        git(self.root(), ["remote", "add", "--", name, url])?;
+        Ok(())
+    }
+
     pub fn sync_state(&self) -> Result<SyncState, String> {
         let remotes = self.remotes()?;
         let status = self.status()?;

@@ -1,6 +1,6 @@
 import {
-  AlertCircle, ArrowDown, ArrowUp, ChevronDown, Download, FileDiff, FolderGit2, FolderOpen,
-  GitBranch, GitCommitHorizontal, LoaderCircle, RefreshCw, Settings, SquareTerminal, X,
+  AlertCircle, ArrowDown, ArrowUp, ChevronDown, Download, FileDiff, FolderGit2, FolderOpen, FolderPlus,
+  GitBranch, GitCommitHorizontal, LoaderCircle, Plus, RefreshCw, Settings, SquareTerminal, X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AccountAvatar } from "./accounts/AccountAvatar";
@@ -163,7 +163,8 @@ export function App() {
             </button>
           </h1>
           {isPickerOpen && <RepositoryPicker entries={workspace.entries} selected={repo?.id} choose={chooseRepo}
-            open={() => showDialog("open")} clone={() => showDialog("clone")} close={() => setIsPickerOpen(false)} isBusy={isBusy} showMenu={repositoryMenu.show} />}
+            open={() => showDialog("open")} clone={() => showDialog("clone")} init={() => showDialog("init")}
+            close={() => setIsPickerOpen(false)} isBusy={isBusy} showMenu={repositoryMenu.show} />}
           <div className="bar-divider" aria-hidden="true" />
           <div className="workspace-bar-main">
           {repo && (
@@ -181,15 +182,18 @@ export function App() {
               {isBranchOpen && <BranchMenu repo={repo.id} current={status?.branch ?? null} isBusy={isBusy || isPaused}
                 close={closeBranchMenu} run={workspace.mutate} compare={() => setIsComparing(true)} />}
               </div>
+              <span className="spacer" />
               {action && <button className="toolbar-cell sync-control" disabled={isBusy} onClick={activateSync} aria-label={action.label}>
                 <SyncIcon size={17} aria-hidden="true" />
                 <span className="toolbar-text truncate"><strong>{action.label}</strong>
                   {workspace.lastFetch && <small className="truncate">Fetched at {workspace.lastFetch}</small>}
                 </span>
               </button>}
+              {sync?.remotes.length === 0 && <button className="toolbar-cell sync-control" disabled={isBusy}
+                onClick={() => showDialog("addRemote")}><Plus size={16} aria-hidden="true" /><strong>Add remote</strong></button>}
             </>
           )}
-          <span className="spacer" />
+          {!repo && <span className="spacer" />}
           {repo && (
             <div className="toolbar-tools row" aria-label="Repository tools">
               {action && action.kind !== "fetch" && <button className="button icon subtle" disabled={isBusy} onClick={fetchRemote} title="Fetch" aria-label="Fetch"><Download size={16} /></button>}
@@ -222,10 +226,10 @@ export function App() {
                 <FolderGit2 size={36} aria-hidden="true" />
                 <h2>{isRestoring ? "Loading repositories" : "Open a Git repository"}</h2>
                 {!isRestoring && <>
-                  <p className="muted">Open an existing checkout or clone a repository.</p>
                   <div className="row">
                     <button className="button primary" disabled={isBusy} onClick={() => showDialog("open")}><FolderOpen size={16} /> Open repository</button>
                     <button className="button" disabled={isBusy} onClick={() => showDialog("clone")}><Download size={16} /> Clone repository</button>
+                    <button className="button" disabled={isBusy} onClick={() => showDialog("init")}><FolderPlus size={16} /> New repository</button>
                   </div>
                 </>}
               </div>
@@ -266,14 +270,19 @@ export function App() {
             )}
           </main>
         </div>
+        {repo && <footer className="checkout-status" aria-label="Checkout status">
+          <span className="row truncate" title={repo.path}><FolderGit2 size={14} aria-hidden="true" /><span className="truncate">{repo.path}</span></span>
+          {status && <span className="row truncate"><GitBranch size={14} aria-hidden="true" /><span className="truncate">{upstreamLabel(status, sync ?? null)}</span></span>}
+        </footer>}
       </div>
       {repositoryMenu.node}
       {settings && <SettingsPage section={settings} selectSection={setSettings} close={closeSettings}
         theme={theme} changeTheme={setTheme} diffView={diffView} changeDiffView={setDiffView} repositoryId={repo?.id} accountState={accounts.state}
         accountError={accounts.error} refreshAccounts={accounts.refresh} isWorkspaceBusy={isBusy} />}
       {dialog && (
-        <WorkspaceDialog key={dialog} kind={dialog} repo={repo?.id} status={status} sync={sync} error={workspace.error}
-          close={() => setDialog(null)} open={workspace.open} clone={workspace.clone} isBusy={isBusy} run={workspace.mutate} />
+        <WorkspaceDialog key={dialog} kind={dialog} status={status} sync={sync} error={workspace.error}
+          close={() => setDialog(null)} open={workspace.open} clone={workspace.clone} init={workspace.init}
+          isBusy={isBusy} run={workspace.mutate} />
       )}
     </div></DiffViewContext.Provider>
   );

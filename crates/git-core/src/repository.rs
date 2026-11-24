@@ -16,15 +16,30 @@ pub struct Repository {
 }
 
 impl Repository {
+    pub fn init_into(parent: &Path, name: &str) -> Result<Self, String> {
+        validate_folder_name(name)?;
+        let directory = parent.join(name);
+        std::fs::create_dir(&directory).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                "That destination already exists. Choose a new folder name.".to_owned()
+            } else {
+                format!("Could not create the repository folder: {error}")
+            }
+        })?;
+        if let Err(error) = git(&directory, ["init"]) {
+            let _ = std::fs::remove_dir(&directory);
+            return Err(error);
+        }
+        Self::open(&directory)
+    }
+
     pub fn clone_into(
         parent: &Path,
         name: &str,
         source: &str,
         execution: &Execution<'_>,
     ) -> Result<Self, String> {
-        if name.trim().is_empty() || name.contains('/') || name == "." || name == ".." {
-            return Err("Enter a single folder name for the checkout.".into());
-        }
+        validate_folder_name(name)?;
         if source.trim().is_empty() {
             return Err("Enter a repository URL or local path.".into());
         }
@@ -177,6 +192,13 @@ impl Repository {
         }
         git(self.root(), arguments)
     }
+}
+
+fn validate_folder_name(name: &str) -> Result<(), String> {
+    if name.trim().is_empty() || name.contains(['/', '\0']) || name == "." || name == ".." {
+        return Err("Enter a single folder name for the checkout.".into());
+    }
+    Ok(())
 }
 
 fn path_output(bytes: &[u8]) -> PathBuf {
