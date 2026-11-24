@@ -596,7 +596,7 @@ dialog::backdrop { background: var(--overlay); }
 .settings-nav.is-collapsed button { justify-content: center; margin: 0; padding-inline: 3px; }
 .settings-nav.is-collapsed .settings-nav-label { display: none; }
 .settings-main { overflow: auto; padding: 20px clamp(20px, 4vw, 40px); }
-.settings-stack { display: grid; gap: 15px; max-width: 650px; }
+.settings-stack { display: grid; gap: 15px; width: 100%; max-width: 650px; margin-inline: auto; }
 .settings-stack > h2 { font-size: 20px; font-weight: 400; }
 .settings-stack > .button { justify-self: start; }
 .settings-card { padding: 10px 15px; border: 1px solid var(--line); border-radius: var(--radius); }
