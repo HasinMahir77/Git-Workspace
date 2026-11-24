@@ -155,6 +155,28 @@ pub async fn open_on_github(
     .await
 }
 
+/// Opens a pull request page, or the page that starts one for the current branch.
+#[tauri::command]
+pub async fn open_pull_request(
+    repo: String,
+    url: Option<String>,
+    state: State<'_, Repositories>,
+) -> Result<(), String> {
+    let entry = state.get(&repo)?;
+    blocking(move || {
+        let url = match url {
+            Some(url) if url.starts_with("https://github.com/") => url,
+            Some(_) => return Err("That is not a github.com pull request.".to_owned()),
+            None => entry
+                .repository
+                .github_compare_url()?
+                .ok_or("This repository does not have a github.com remote.")?,
+        };
+        spawn_detached("xdg-open", &[OsStr::new(&url)])
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn has_github_remote(
     repo: String,

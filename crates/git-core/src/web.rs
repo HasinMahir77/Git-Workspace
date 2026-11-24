@@ -26,6 +26,27 @@ impl Repository {
         }))
     }
 
+    /// The github.com page that opens a pull request for the current branch.
+    pub fn github_compare_url(&self) -> Result<Option<String>, String> {
+        let Some(base) = self.github_url(None)? else {
+            return Ok(None);
+        };
+        let branch = self
+            .status()?
+            .branch
+            .ok_or("Switch to a branch to open a pull request.")?;
+        let encoded: String = branch
+            .bytes()
+            .map(|byte| match byte {
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'/' => {
+                    char::from(byte).to_string()
+                }
+                _ => format!("%{byte:02X}"),
+            })
+            .collect();
+        Ok(Some(format!("{base}/compare/{encoded}?expand=1")))
+    }
+
     fn remote_for_links(&self) -> Result<String, String> {
         let branch = self.status()?.branch;
         if let Some(branch) = branch {

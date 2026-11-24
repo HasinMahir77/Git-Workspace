@@ -1,14 +1,19 @@
 import { Check } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { git } from "../git/client";
 import { fileKind, fileStateLabel, hasStagedChanges, hasUnstagedChanges, isFullyStaged, isPartlyStaged } from "../git/changes.helpers";
+import { commitMessageIssue, messageTemplate, usesConventionalCommits } from "../git/commit-message.helpers";
+import { DiffViewContext } from "../git/DiffViewContext";
+import { isDefaultDiffOptions } from "../git/diff-view.helpers";
+import { filterByPath } from "../git/file-filter.helpers";
 import { splitPath } from "../git/path.helpers";
 import { copyText } from "../git/clipboard.helpers";
 import { changesListMenu, changesMenu } from "../git/menu.helpers";
 import { useExternalEditor } from "../git/useExternalEditor";
 import { messageOf } from "../git/workspace.helpers";
 import type { ChangedFile } from "../git/bindings";
+import { BlameDialog } from "./BlameDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useContextMenu } from "./useContextMenu";
 import { StashPanel } from "./StashPanel";
@@ -16,6 +21,7 @@ import { DiffPanel } from "./DiffPanel";
 import { FileStatusIcon } from "./FileStatusIcon";
 import { IndeterminateCheckbox } from "./IndeterminateCheckbox";
 import { WorkspaceSplit } from "./WorkspaceSplit";
+import type { Draft } from "../git/workspace.types";
 import type { DiffSide, FileRowProps, Props } from "./changes.types";
 
 function FileRow({ file, isSelected, select, toggle, showMenu, isBusy }: FileRowProps) {
@@ -39,21 +45,28 @@ export function Changes({ sidebar, repo, repositoryPath, status, revision, isBus
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pickedSide, setPickedSide] = useState<DiffSide | null>(null);
   const [discarding, setDiscarding] = useState<ChangedFile[] | null>(null);
+  const [query, setQuery] = useState("");
+  const [blaming, setBlaming] = useState<string | null>(null);
+  const [isAmending, setIsAmending] = useState(false);
+  const [committed, setCommitted] = useState<Draft | null>(null);
+  const [isConventional, setIsConventional] = useState(false);
+  const { options } = useContext(DiffViewContext);
   const anchor = useRef<string | null>(null);
   const menu = useContextMenu();
   const editorLabel = useExternalEditor();
   const [preview, setPreview] = useState<{ key: string; patch: string; error?: string } | null>(null);
   const files = status.files;
+  const visibleFiles = filterByPath(files, query);
   const staged = files.filter(hasStagedChanges);
   const hasConflict = files.some((file) => file.hasConflict);
   const isAllStaged = files.length > 0 && files.every((file) => file.hasConflict || isFullyStaged(file));
   const isAnyStaged = files.some((file) => hasStagedChanges(file));
 
   function select(id: string, event: MouseEvent<HTMLButtonElement>) {
-    const start = files.findIndex((file) => file.id === anchor.current);
-    const end = files.findIndex((file) => file.id === id);
+    const start = visibleFiles.findIndex((file) => file.id === anchor.current);
+    const end = visibleFiles.findIndex((file) => file.id === id);
     if (event.shiftKey && start >= 0 && end >= 0) {
-      setSelectedIds(files.slice(Math.min(start, end), Math.max(start, end) + 1).map((file) => file.id));
+      setSelectedIds(visibleFiles.slice(Math.min(start, end), Math.max(start, end) + 1).map((file) => file.id));
     } else if (event.ctrlKey || event.metaKey) {
       setSelectedIds((previous) => previous.includes(id) ? previous.filter((entry) => entry !== id) : [...previous, id]);
       anchor.current = id;
@@ -102,6 +115,7 @@ export function Changes({ sidebar, repo, repositoryPath, status, revision, isBus
       showInFiles: (path) => attempt(git.reveal(repo, path)),
       openInEditor: (path) => attempt(git.openInEditor(repo, path)),
       openDefault: (path) => attempt(git.openDefault(repo, path)),
+      blame: setBlaming,
     }));
   }
 
@@ -119,18 +133,59 @@ export function Changes({ sidebar, repo, repositoryPath, status, revision, isBus
   const hasBothSides = file !== undefined && isPartlyStaged(file);
   const isStaged = file === undefined ? false : hasBothSides && pickedSide?.id === file.id ? pickedSide.isStaged : !hasUnstagedChanges(file);
   const id = file?.id;
-  const key = `${id}:${isStaged}:${revision}`;
+  const key = `${id}:${isStaged}:${revision}:${options.shouldIgnoreWhitespace}:${options.contextLines}`;
 
   useEffect(() => {
     if (!id) return;
     let isCurrent = true;
-    void git.diff(repo, id, isStaged).then((patch) => {
+    void git.diff(repo, id, isStaged, options).then((patch) => {
       if (isCurrent) setPreview({ key, patch });
     }).catch((reason: unknown) => {
       if (isCurrent) setPreview({ key, patch: "", error: messageOf(reason) });
     });
     return () => { isCurrent = false; };
-  }, [repo, id, isStaged, key]);
+  }, [repo, id, isStaged, key, options]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    void git.history(repo, 0).then((page) => { if (isCurrent) setIsConventional(usesConventionalCommits(page.map((entry) => entry.summary))); })
+      .catch(() => { if (isCurrent) setIsConventional(false); });
+    return () => { isCurrent = false; };
+  }, [repo, revision]);
+
+  const canAmend = !status.isUnborn;
+  const issue = isConventional ? commitMessageIssue(draft.summary) : null;
+
+  function changeAmend(shouldAmend: boolean) {
+    setIsAmending(shouldAmend);
+    if (!shouldAmend || draft.summary.trim()) return;
+    void git.headMessage(repo).then((message) => changeDraft(message)).catch((reason: unknown) => report(messageOf(reason)));
+  }
+
+  function prefillSummary(input: HTMLInputElement) {
+    const template = isConventional && !draft.summary ? messageTemplate(status.branch) : null;
+    if (!template) return;
+    changeDraft({ ...draft, summary: template });
+    requestAnimationFrame(() => input.setSelectionRange(template.length, template.length));
+  }
+
+  async function undoCommit(target: Draft) {
+    try {
+      const head = await git.headMessage(repo);
+      if (head.summary !== target.summary) {
+        setCommitted(null);
+        report("The last commit changed since you made it, so it was not undone.");
+        return;
+      }
+    } catch (reason: unknown) {
+      report(messageOf(reason));
+      return;
+    }
+    if (await run({ type: "undoCommit" }, "Undo commit")) {
+      setCommitted(null);
+      if (!draft.summary.trim()) changeDraft(target);
+    }
+  }
 
   const sideActions = file !== undefined && hasBothSides ? (
     <span className="segmented" role="group" aria-label="Diff version">
@@ -161,7 +216,7 @@ export function Changes({ sidebar, repo, repositoryPath, status, revision, isBus
       ) :
         <DiffPanel title={file ? (file.originalPath ? `${file.originalPath} → ${file.path}` : file.path) : undefined}
           isStaged={isStaged} actions={sideActions} fileStatus={file ? { kind: fileKind(file), label: fileStateLabel(file) } : undefined}
-          hunkAction={file && !file.hasConflict && !file.originalPath && (isStaged ? file.staged : file.unstaged) !== "?" ? {
+          hunkAction={file && isDefaultDiffOptions(options) && !file.hasConflict && !file.originalPath && (isStaged ? file.staged : file.unstaged) !== "?" ? {
             verb: isStaged ? "Unstage" : "Stage", isDisabled: isBusy,
             toggleHunk: (index, header) => void run({ type: isStaged ? "unstageHunk" : "stageHunk", id: file.id, index, header }, isStaged ? "Unstage hunk" : "Stage hunk"),
             toggleLines: (index, header, lines) => void run({ type: isStaged ? "unstageLines" : "stageLines", id: file.id, index, header, lines },
@@ -178,38 +233,62 @@ export function Changes({ sidebar, repo, repositoryPath, status, revision, isBus
               aria-label={isAllStaged ? "Unstage all files" : "Stage all files"} onChange={() => void stageAll(!isAllStaged, files)} />
             <strong>{files.length} changed {files.length === 1 ? "file" : "files"}</strong>
           </div>
+          <div className="file-filter">
+            <input className="field" type="search" aria-label="Filter changed files" placeholder="Filter" value={query}
+              onChange={(event) => setQuery(event.target.value)} />
+          </div>
           <div className="file-list" role="group" aria-label="Changed files" onContextMenu={showListMenu} onKeyDown={(event) => {
             if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "a") {
               event.preventDefault();
               setSelectedIds(files.map((entry) => entry.id));
             }
           }}>
-            {files.map((entry) => <FileRow key={entry.id} file={entry} isSelected={selectedIds.includes(entry.id) || (selectedIds.length === 0 && entry.id === file?.id)}
+            {visibleFiles.length === 0 && <div className="empty">No files match</div>}
+            {visibleFiles.map((entry) => <FileRow key={entry.id} file={entry} isSelected={selectedIds.includes(entry.id) || (selectedIds.length === 0 && entry.id === file?.id)}
               select={select} toggle={toggle} showMenu={showFileMenu} isBusy={isBusy} />)}
           </div>
         </>
       )}
       <StashPanel repo={repo} revision={revision} isBusy={isBusy} hasChanges={files.length > 0} run={run} />
+      {committed && (
+        <div className="undo-bar" role="status">
+          <span className="truncate">Committed <strong>{committed.summary}</strong></span>
+          <button type="button" className="button" disabled={isBusy} onClick={() => void undoCommit(committed)}>Undo</button>
+          <button type="button" className="button icon subtle" aria-label="Dismiss" onClick={() => setCommitted(null)}>×</button>
+        </div>
+      )}
       <form className="commit-tray" onSubmit={(event) => {
         event.preventDefault();
-        void run({ type: "commit", ...draft }, "Commit").then((isSuccessful) => {
-          if (isSuccessful) changeDraft({ summary: "", body: "" });
+        const submitted = draft;
+        void run({ type: isAmending ? "amend" : "commit", ...submitted }, isAmending ? "Amend commit" : "Commit").then((isSuccessful) => {
+          if (!isSuccessful) return;
+          changeDraft({ summary: "", body: "" });
+          setCommitted(isAmending ? null : submitted);
+          setIsAmending(false);
         });
       }}>
         <label><span className="sr-only">Summary</span>
           <input className="field" name="commit-summary" placeholder="Summary (required)" autoComplete="off" value={draft.summary} disabled={isBusy}
+            onFocus={(event) => prefillSummary(event.currentTarget)} aria-describedby={issue ? "commit-summary-issue" : undefined}
             onChange={(event) => changeDraft({ ...draft, summary: event.target.value })} />
         </label>
+        {issue && <small id="commit-summary-issue" className="commit-issue" role="status">{issue}</small>}
         <label><span className="sr-only">Description (optional)</span>
           <textarea className="field" name="commit-body" placeholder="Description" rows={2} value={draft.body} disabled={isBusy}
             onChange={(event) => changeDraft({ ...draft, body: event.target.value })} />
         </label>
         {hasConflict && <small>Resolve conflicts in your editor or terminal.</small>}
-        <button type="submit" className="button primary" disabled={isBusy || hasConflict || !draft.summary.trim() || staged.length === 0}>
-          {status.branch ? <>Commit to <strong>{status.branch}</strong></> : "Commit"}
+        {canAmend && (
+          <label className="amend-toggle">
+            <input type="checkbox" checked={isAmending} disabled={isBusy} onChange={(event) => changeAmend(event.target.checked)} /> Amend last commit
+          </label>
+        )}
+        <button type="submit" className="button primary" disabled={isBusy || hasConflict || !draft.summary.trim() || (staged.length === 0 && !isAmending)}>
+          {isAmending ? "Amend last commit" : status.branch ? <>Commit to <strong>{status.branch}</strong></> : "Commit"}
         </button>
       </form>
       {menu.node}
+      {blaming && <BlameDialog repo={repo} path={blaming} close={() => setBlaming(null)} />}
       {discarding && (
         <ConfirmDialog title="Confirm discard changes" confirmLabel={discarding.length === 1 ? "Discard changes" : `Discard ${discarding.length} files`}
           isDanger close={() => setDiscarding(null)} confirm={() => void discard(discarding)}>

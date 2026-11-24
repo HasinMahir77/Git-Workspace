@@ -86,3 +86,49 @@ fn browser_login_emits_only_the_device_code_and_refreshes_the_active_account() {
             .any(|account| account.login == "personal-fixture" && account.is_active)
     );
 }
+
+fn show_pull_request(fixture: &CliFixture, json: &str) {
+    fs::write(fixture.directory.path().join("pr"), json).unwrap();
+}
+
+#[test]
+fn reports_the_open_pull_request_with_a_failing_check_summary() {
+    let fixture = CliFixture::new();
+    show_pull_request(&fixture, r#"{"number":12,"title":"Add thing","state":"OPEN","url":"https://github.com/o/r/pull/12","isDraft":false,"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS"},{"status":"COMPLETED","conclusion":"FAILURE"}]}"#);
+
+    let pull_request = GitHubCli::new(fixture.program()).pull_request(fixture.directory.path()).unwrap().unwrap();
+
+    assert_eq!(pull_request.number, 12);
+    assert_eq!(pull_request.title, "Add thing");
+    assert_eq!(pull_request.checks, git_gui_core::CheckSummary::Failing);
+}
+
+#[test]
+fn pending_checks_win_over_passing_ones() {
+    let fixture = CliFixture::new();
+    show_pull_request(&fixture, r#"{"number":1,"title":"t","state":"OPEN","url":"u","isDraft":true,"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS"},{"status":"IN_PROGRESS","conclusion":""}]}"#);
+
+    let pull_request = GitHubCli::new(fixture.program()).pull_request(fixture.directory.path()).unwrap().unwrap();
+
+    assert_eq!(pull_request.checks, git_gui_core::CheckSummary::Pending);
+    assert!(pull_request.is_draft);
+}
+
+#[test]
+fn a_pull_request_without_checks_reports_none() {
+    let fixture = CliFixture::new();
+    show_pull_request(&fixture, r#"{"number":1,"title":"t","state":"MERGED","url":"u","isDraft":false,"statusCheckRollup":[]}"#);
+
+    let pull_request = GitHubCli::new(fixture.program()).pull_request(fixture.directory.path()).unwrap().unwrap();
+
+    assert_eq!(pull_request.checks, git_gui_core::CheckSummary::None);
+}
+
+#[test]
+fn a_branch_without_a_pull_request_is_not_an_error() {
+    let fixture = CliFixture::new();
+
+    let pull_request = GitHubCli::new(fixture.program()).pull_request(fixture.directory.path()).unwrap();
+
+    assert!(pull_request.is_none());
+}

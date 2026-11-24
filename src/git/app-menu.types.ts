@@ -1,0 +1,21 @@
+export type AppMenuActions = {
+  hasRepository: boolean;
+  isBusy: boolean;
+  hasGitHubRemote: boolean;
+  editorLabel: string | null;
+  syncTitle: string | null;
+  newRepository: () => void;
+  addRepository: () => void;
+  cloneRepository: () => void;
+  openSettings: () => void;
+  openAccounts: () => void;
+  switchRepository: () => void;
+  refresh: () => void;
+  openTerminal: () => void;
+  showInFiles: () => void;
+  openInEditor: () => void;
+  viewOnGitHub: () => void;
+  openBranches: () => void;
+  compareBranches: () => void;
+  sync: () => void;
+};

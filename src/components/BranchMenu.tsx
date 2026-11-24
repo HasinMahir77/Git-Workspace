@@ -1,4 +1,4 @@
-import { CheckIcon, GitBranchIcon, GitCompareIcon, PlusIcon, SearchIcon } from "@primer/octicons-react";
+import { CheckIcon, GitBranchIcon, GitCompareIcon, PencilIcon, PlusIcon, SearchIcon, TrashIcon } from "@primer/octicons-react";
 import { useEffect, useRef, useState } from "react";
 import { git } from "../git/client";
 import { messageOf } from "../git/workspace.helpers";
@@ -12,6 +12,9 @@ export function BranchMenu({ repo, current, isBusy, close, run, compare }: Branc
   const [query, setQuery] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [name, setName] = useState("");
+  const [change, setChange] = useState<{ kind: "rename" | "delete"; branch: string } | null>(null);
+  const [editName, setEditName] = useState("");
+  const [shouldForce, setShouldForce] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,16 +69,49 @@ export function BranchMenu({ repo, current, isBusy, close, run, compare }: Branc
           <button className="button primary" disabled={isBusy || !name.trim()}>Create branch</button>
         </form>
       )}
+      {change?.kind === "rename" && (
+        <form className="branch-create row" onSubmit={(event) => {
+          event.preventDefault();
+          close();
+          void run({ type: "renameBranch", from: change.branch, to: editName.trim() }, "Rename branch");
+        }}>
+          <input className="field" aria-label={`New name for ${change.branch}`} autoFocus value={editName} onChange={(event) => setEditName(event.target.value)} required />
+          <button className="button primary" disabled={isBusy || !editName.trim() || editName.trim() === change.branch}>Rename branch</button>
+          <button type="button" className="button" onClick={() => setChange(null)}>Cancel</button>
+        </form>
+      )}
+      {change?.kind === "delete" && (
+        <form className="branch-delete" onSubmit={(event) => {
+          event.preventDefault();
+          close();
+          void run({ type: "deleteBranch", branch: change.branch, shouldForce }, "Delete branch");
+        }}>
+          <p>Delete <strong>{change.branch}</strong>? Only the local branch goes. Its commits stay on any remote.</p>
+          <label className="row"><input type="checkbox" checked={shouldForce} onChange={(event) => setShouldForce(event.target.checked)} /> Delete even if it has commits that are not merged</label>
+          <div className="row">
+            <button className="button danger-fill" disabled={isBusy} autoFocus>Delete branch</button>
+            <button type="button" className="button" onClick={() => setChange(null)}>Cancel</button>
+          </div>
+        </form>
+      )}
       <div className="branch-list">
         {!branches && !error && <p className="muted">Loading branches…</p>}
         {local?.length === 0 && remote?.length === 0 && <p className="muted">No matching branches</p>}
         {local && local.length > 0 && <h3 className="branch-group">Local</h3>}
         {local?.map((branch) => (
-          <button className="branch-item" key={branch} disabled={isBusy} aria-current={branch === current ? "true" : undefined}
-            onClick={() => { if (branch !== current) void run({ type: "switchBranch", branch }, "Switch branch"); close(); }}>
-            {branch === current ? <CheckIcon aria-hidden="true" /> : <GitBranchIcon aria-hidden="true" />}
-            <span className="truncate">{branch}</span>
-          </button>
+          <div className="branch-row" key={branch}>
+            <button className="branch-item" disabled={isBusy} aria-current={branch === current ? "true" : undefined}
+              onClick={() => { if (branch !== current) void run({ type: "switchBranch", branch }, "Switch branch"); close(); }}>
+              {branch === current ? <CheckIcon aria-hidden="true" /> : <GitBranchIcon aria-hidden="true" />}
+              <span className="truncate">{branch}</span>
+            </button>
+            <button type="button" className="branch-row-action" aria-label={`Rename ${branch}`} title="Rename branch" disabled={isBusy}
+              onClick={() => { setChange({ kind: "rename", branch }); setEditName(branch); }}><PencilIcon /></button>
+            {branch !== current && (
+              <button type="button" className="branch-row-action" aria-label={`Delete ${branch}`} title="Delete branch" disabled={isBusy}
+                onClick={() => { setChange({ kind: "delete", branch }); setShouldForce(false); }}><TrashIcon /></button>
+            )}
+          </div>
         ))}
         {remote && remote.length > 0 && <h3 className="branch-group">Remote</h3>}
         {remote?.map((branch) => (

@@ -54,3 +54,15 @@ fn other_hosts_and_missing_remotes_have_no_github_link() {
         None
     );
 }
+
+#[test]
+fn builds_a_compare_link_for_the_current_branch() {
+    let checkout = checkout_with_origin("git@github.com:octo/notes.git");
+    checkout.git(&["switch", "-c", "feat/GH-1#name"]);
+    let repository = Repository::open(checkout.path()).unwrap();
+
+    assert_eq!(
+        repository.github_compare_url().unwrap().as_deref(),
+        Some("https://github.com/octo/notes/compare/feat/GH-1%23name?expand=1")
+    );
+}

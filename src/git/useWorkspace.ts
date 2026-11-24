@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { git } from "./client";
 import type { Operation, RepositoryInfo } from "./bindings";
 import type { Repositories, Snapshot } from "./workspace.types";
-import { ACTIVE_REPOSITORY_KEY, MAX_OUTPUT_LENGTH, REPOSITORIES_KEY } from "./workspace.constants";
+import { ACTIVE_REPOSITORY_KEY, BACKGROUND_FETCH_MS, FIRST_BACKGROUND_FETCH_MS, MAX_OUTPUT_LENGTH, REPOSITORIES_KEY } from "./workspace.constants";
 import { messageOf, readSavedPaths } from "./workspace.helpers";
 
 export function useWorkspace() {
@@ -18,6 +18,7 @@ export function useWorkspace() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [fetchTimes, setFetchTimes] = useState<Record<string, number>>({});
   const isRunning = useRef(false);
+  const backgroundFetch = useRef<Promise<void> | null>(null);
   const selected = repositories.entries.find((entry) => entry.id === repositories.selected);
   const repo = selected?.id;
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
@@ -67,6 +68,22 @@ export function useWorkspace() {
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [refresh]);
+
+  const fetchRemote = snapshot?.repo === repo ? snapshot?.sync?.fetchRemote : null;
+  useEffect(() => {
+    if (!repo || !fetchRemote) return;
+    const fetchQuietly = () => {
+      if (isRunning.current || backgroundFetch.current) return;
+      const work = git.run(repo, { type: "fetch", remote: fetchRemote }, () => undefined)
+        .then(() => setFetchTimes((times) => ({ ...times, [repo]: Date.now() })))
+        .catch(() => undefined)
+        .finally(() => { backgroundFetch.current = null; if (!isRunning.current) refresh(); });
+      backgroundFetch.current = work;
+    };
+    const first = window.setTimeout(fetchQuietly, FIRST_BACKGROUND_FETCH_MS);
+    const timer = window.setInterval(fetchQuietly, BACKGROUND_FETCH_MS);
+    return () => { window.clearTimeout(first); window.clearInterval(timer); };
+  }, [repo, fetchRemote, refresh]);
 
   function select(id: string) {
     setError("");
@@ -131,8 +148,10 @@ export function useWorkspace() {
   }
 
   async function mutate(request: Operation, label: string) {
-    if (!repo || isRunning.current) return false;
-    const canCancel = !["stage", "unstage", "stageHunk", "unstageHunk", "discard", "addToGitignore", "addRemote"].includes(request.type);
+    if (!repo) return false;
+    if (backgroundFetch.current) await backgroundFetch.current;
+    if (isRunning.current) return false;
+    const canCancel = !["stage", "unstage", "stageHunk", "unstageHunk", "stageLines", "unstageLines", "discard", "addToGitignore", "addRemote", "undoCommit", "deleteBranch", "renameBranch", "resolveConflict"].includes(request.type);
     setCancelTarget(canCancel ? repo : null);
     const result = await run(label, (emit) => git.run(repo, request, emit), canCancel);
     setCancelTarget(null);

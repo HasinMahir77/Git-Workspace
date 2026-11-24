@@ -1,12 +1,14 @@
 mod compare;
 mod discard;
 mod execution;
+mod files;
 mod git;
 mod history;
 mod hunks;
 mod ignore;
 mod integration;
 mod repository;
+mod rewrite;
 mod stash;
 mod sync;
 mod types;

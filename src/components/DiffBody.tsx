@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { changedLinesBetween, lineNumberWidth } from "../git/diff.helpers";
+import { splitSpans, unifiedSpans } from "../git/diff-spans.helpers";
+import type { SplitSpans } from "../git/diff-spans.helpers";
 import type { DiffLine, DiffRow, UnifiedRow } from "../git/diff.types";
+import type { Span } from "../git/syntax.types";
 import { FILE_HEADER_PREFIX, HUNK_HEADER_PREFIX, KEYBOARD_CLICK_DETAIL, LINE_PREFIXES, NBSP } from "./diff-body.constants";
 import type { DiffBodyProps, HunkControls, LineRange } from "./diff-body.types";
 
@@ -10,11 +13,14 @@ type ChangeLine = { hunk: number; line: number };
 
 const WHOLE_HUNK = { from: 0, to: Number.POSITIVE_INFINITY };
 
-function Content({ prefix, text }: { prefix: LinePrefix; text: string }) {
+function Content({ prefix, text, spans }: { prefix: LinePrefix; text: string; spans?: Span[] }) {
   return (
     <div className="diff-content">
       <span className="diff-prefix" aria-hidden="true">{`${NBSP}${NBSP}${prefix}${NBSP}${NBSP}`}</span>
-      <span className="diff-text">{text}</span>
+      <span className="diff-text">{spans ? spans.map((span, index) => (
+        span.kind === "plain" && !span.isChanged ? span.text
+          : <span key={index} className={`${span.kind === "plain" ? "" : `syn-${span.kind}`}${span.isChanged ? " word-changed" : ""}`.trim()}>{span.text}</span>
+      )) : text}</span>
     </div>
   );
 }
@@ -73,7 +79,7 @@ function InfoRow({ kind, text, controls }: { kind: "meta" | "note" | "file"; tex
   );
 }
 
-function UnifiedRows({ rows, controls }: { rows: UnifiedRow[]; controls?: HunkControls }) {
+function UnifiedRows({ rows, spans, controls }: { rows: UnifiedRow[]; spans: (Span[] | undefined)[]; controls?: HunkControls }) {
   let hunk = -1;
   return rows.map((row, index): ReactNode => {
     if (row.kind === "hunk") {
@@ -86,24 +92,24 @@ function UnifiedRows({ rows, controls }: { rows: UnifiedRow[]; controls?: HunkCo
       <div key={index} className={`diff-row ${row.kind}`}>
         <HunkHandle changes={change ? [change] : []} controls={controls} />
         <Gutter numbers={[row.oldNumber, row.newNumber]} change={change} controls={controls} />
-        <Content prefix={LINE_PREFIXES[row.kind]} text={row.text} />
+        <Content prefix={LINE_PREFIXES[row.kind]} text={row.text} spans={spans[index]} />
       </div>
     );
   });
 }
 
-function Side({ line, side, hunk, controls }: { line: DiffLine | null; side: "before" | "after"; hunk: number; controls?: HunkControls }) {
+function Side({ line, side, hunk, spans, controls }: { line: DiffLine | null; side: "before" | "after"; hunk: number; spans?: Span[]; controls?: HunkControls }) {
   if (!line) return <div className={`diff-side ${side} is-empty`}><div className="diff-gutter" /><div className="diff-content" /></div>;
   const change = line.kind === "context" ? undefined : { hunk, line: line.hunkLine };
   return (
     <div className={`diff-side ${side} ${line.kind}`}>
       <Gutter numbers={[line.number]} change={change} controls={controls} />
-      <Content prefix={LINE_PREFIXES[line.kind]} text={line.text} />
+      <Content prefix={LINE_PREFIXES[line.kind]} text={line.text} spans={spans} />
     </div>
   );
 }
 
-function SplitRows({ rows, controls }: { rows: DiffRow[]; controls?: HunkControls }) {
+function SplitRows({ rows, spans, controls }: { rows: DiffRow[]; spans: (SplitSpans | undefined)[]; controls?: HunkControls }) {
   let hunk = -1;
   return rows.map((row, index): ReactNode => {
     if ("meta" in row) {
@@ -116,9 +122,9 @@ function SplitRows({ rows, controls }: { rows: DiffRow[]; controls?: HunkControl
     const changes = [row.left, row.right].flatMap((line) => line && line.kind !== "context" ? [{ hunk, line: line.hunkLine }] : []);
     return (
       <div key={index} className={`diff-row ${changes.length > 0 ? "changed" : "context"}`}>
-        <Side line={row.left} side="before" hunk={hunk} controls={controls} />
+        <Side line={row.left} side="before" hunk={hunk} spans={spans[index]?.before} controls={controls} />
         <HunkHandle changes={changes} controls={controls} />
-        <Side line={row.right} side="after" hunk={hunk} controls={controls} />
+        <Side line={row.right} side="after" hunk={hunk} spans={spans[index]?.after} controls={controls} />
       </div>
     );
   });
@@ -132,11 +138,13 @@ function largestLineNumber(rows: UnifiedRow[]): number {
   return rows.reduce((largest, row) => "oldNumber" in row ? Math.max(largest, row.oldNumber ?? 0, row.newNumber ?? 0) : largest, 0);
 }
 
-export function DiffBody({ diffView, unifiedRows, splitRows, hunkAction, isIncluded }: DiffBodyProps) {
+export function DiffBody({ diffView, unifiedRows, splitRows, hunkAction, isIncluded, language }: DiffBodyProps) {
   const [highlight, setHighlight] = useState<LineRange | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const drag = useRef<LineRange | null>(null);
   const headers = useMemo(() => hunkHeaders(unifiedRows), [unifiedRows]);
+  const unified = useMemo(() => diffView === "unified" ? unifiedSpans(unifiedRows, language) : [], [diffView, unifiedRows, language]);
+  const split = useMemo(() => diffView === "split" ? splitSpans(splitRows, language) : [], [diffView, splitRows, language]);
   const width = useMemo(() => lineNumberWidth(largestLineNumber(unifiedRows)), [unifiedRows]);
 
   function toggleLines(hunk: number, lines: number[]) {
@@ -185,7 +193,7 @@ export function DiffBody({ diffView, unifiedRows, splitRows, hunkAction, isInclu
 
   return (
     <div className={`diff-scroll ${diffView}-diff${controls ? " editable" : ""}${isDragging ? " is-dragging" : ""}`} style={style} tabIndex={0}>
-      {diffView === "unified" ? <UnifiedRows rows={unifiedRows} controls={controls} /> : <SplitRows rows={splitRows} controls={controls} />}
+      {diffView === "unified" ? <UnifiedRows rows={unifiedRows} spans={unified} controls={controls} /> : <SplitRows rows={splitRows} spans={split} controls={controls} />}
     </div>
   );
 }

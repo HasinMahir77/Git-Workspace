@@ -2,6 +2,7 @@ import { useContext, useMemo } from "react";
 import { DiffViewContext } from "../git/DiffViewContext";
 import { splitDiff, unifiedDiff } from "../git/diff.helpers";
 import { splitPath } from "../git/path.helpers";
+import { languageOf } from "../git/syntax.language";
 import { DiffBody } from "./DiffBody";
 import { DiffOptions } from "./DiffOptions";
 import { FileStatusIcon } from "./FileStatusIcon";
@@ -29,6 +30,7 @@ export function DiffPanel({ title, detail, actions, emptyTitle, patch, error, is
     !("meta" in row) || !HIDDEN_META.test(row.meta) && (isHistory || !row.meta.startsWith("diff --git "))
   )) : [], [patch, isHistory]);
   const unifiedRows = useMemo(() => patch ? unifiedDiff(patch, isHistory) : [], [patch, isHistory]);
+  const language = useMemo(() => isHistory ? null : languageOf(title), [isHistory, title]);
   const hasDiff = diffView === "unified" ? unifiedRows.length > 0 : splitRows.length > 0;
   return (
     <section className="diff-panel" aria-label={isHistory ? "Commit details" : "File diff"}>
@@ -42,7 +44,7 @@ export function DiffPanel({ title, detail, actions, emptyTitle, patch, error, is
         </div>
       ) : null}
       {hasDiff ? (
-        <DiffBody diffView={diffView} unifiedRows={unifiedRows} splitRows={splitRows} hunkAction={hunkAction} isIncluded={isStaged} />
+        <DiffBody diffView={diffView} unifiedRows={unifiedRows} splitRows={splitRows} hunkAction={hunkAction} isIncluded={isStaged} language={language} />
       ) : (
         <div className="diff-blankslate" role={error ? "alert" : undefined}>
           <p>{emptyMessage({ error, emptyTitle, title, isHistory, patch })}</p>

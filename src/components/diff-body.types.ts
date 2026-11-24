@@ -1,5 +1,6 @@
 import type { DiffView } from "../git/diff-view.types";
 import type { DiffRow, UnifiedRow } from "../git/diff.types";
+import type { Language } from "../git/syntax.types";
 import type { HunkAction, StagingVerb } from "./diff-panel.types";
 
 export type DiffBodyProps = {
@@ -8,6 +9,7 @@ export type DiffBodyProps = {
   splitRows: DiffRow[];
   hunkAction?: HunkAction;
   isIncluded: boolean;
+  language: Language | null;
 };
 
 export type LineRange = { hunk: number; from: number; to: number };

@@ -10,7 +10,7 @@ const changedFile = (overrides = {}) => {
 };
 const changesActions = (files, overrides = {}) => ({
   repositoryPath: "/work/app", files, editorLabel: "Visual Studio Code", copy: noop, discard: noop, ignorePath: noop,
-  ignorePattern: noop, include: noop, showInFiles: noop, openInEditor: noop, openDefault: noop, ...overrides,
+  ignorePattern: noop, include: noop, showInFiles: noop, openInEditor: noop, openDefault: noop, blame: noop, ...overrides,
 });
 const labels = (items) => items.filter((item) => item.type !== "separator").map((item) => item.label);
 const find = (items, label) => items.find((item) => item.label === label);
@@ -77,4 +77,13 @@ test("the repository menu follows GitHub Desktop's order and ends with remove", 
     viewOnGitHub: noop, openInTerminal: noop, showInFiles: noop, openInEditor: noop, remove: noop,
   });
   assert.deepEqual(labels(items), ["Copy repo name", "Copy repo path", "View on GitHub", "Open in Terminal", "Show in your File Manager", "Open in external editor", "Remove…"]);
+});
+
+test("blame is offered for one tracked file only", () => {
+  const blame = (files) => find(changesMenu(changesActions(files)), "View blame");
+  assert.equal(blame([changedFile()]).isEnabled, true);
+  assert.equal(blame([changedFile({ unstaged: "?" })]).isEnabled, false);
+  assert.equal(blame([changedFile({ staged: "A", unstaged: "." })]).isEnabled, false);
+  assert.equal(blame([changedFile({ hasConflict: true })]).isEnabled, false);
+  assert.equal(blame([changedFile(), changedFile()]).isEnabled, false);
 });

@@ -43,6 +43,17 @@ pub async fn run_operation(
             Operation::Fetch { remote } => repository.fetch(&remote, execution),
             Operation::AddRemote { name, url } => repository.add_remote(&name, &url),
             Operation::Pull => repository.pull(execution),
+            Operation::Amend { summary, body } => repository.amend(&summary, &body, execution),
+            Operation::UndoCommit => repository.undo_commit(),
+            Operation::DeleteBranch {
+                branch,
+                should_force,
+            } => repository.delete_branch(&branch, should_force),
+            Operation::RenameBranch { from, to } => repository.rename_branch(&from, &to),
+            Operation::Squash { commit, onto } => repository.squash(&commit, &onto, execution),
+            Operation::ResolveConflict { id, content } => {
+                repository.resolve_conflict(&id, &content)
+            }
             Operation::Merge { other, expected_id } => {
                 repository.merge(&other, &expected_id, execution)
             }

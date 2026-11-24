@@ -1,5 +1,5 @@
 use crate::{
-    Commit, CommitFile, Execution, Repository,
+    Commit, CommitFile, DiffOptions, Execution, Repository,
     git::{git, text},
 };
 
@@ -26,7 +26,17 @@ impl Repository {
     }
 
     pub fn commit_diff(&self, id: &str, paths: &[String]) -> Result<String, String> {
+        self.commit_diff_with(id, paths, &DiffOptions::default())
+    }
+
+    pub fn commit_diff_with(
+        &self,
+        id: &str,
+        paths: &[String],
+        options: &DiffOptions,
+    ) -> Result<String, String> {
         require_commit_id(id)?;
+        let option_arguments = options.arguments();
         let mut arguments: Vec<&str> = vec![
             "--literal-pathspecs",
             "show",
@@ -37,9 +47,9 @@ impl Repository {
             "--no-textconv",
             "--no-color",
             "--find-renames",
-            id,
-            "--",
         ];
+        arguments.extend(option_arguments.iter().map(String::as_str));
+        arguments.extend([id, "--"]);
         arguments.extend(paths.iter().map(String::as_str));
         Ok(text(&git(self.root(), arguments)?))
     }
@@ -119,7 +129,7 @@ impl Repository {
     }
 }
 
-pub(crate) const COMMIT_FORMAT: &str = "--format=%H%x00%an%x00%as%x00%s";
+pub(crate) const COMMIT_FORMAT: &str = "--format=%H%x00%an%x00%aI%x00%s";
 
 pub(crate) fn parse_commits(output: &[u8]) -> Result<Vec<Commit>, String> {
     let output = output.strip_suffix(&[0]).unwrap_or(output);

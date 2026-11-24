@@ -20,5 +20,11 @@ case "$*" in
     "auth setup-git --hostname github.com")
         touch "$directory/setup-completed"
         ;;
+    'pr view --json number,title,state,url,isDraft,statusCheckRollup')
+        if test -f "$directory/pr"; then cat "$directory/pr"; else
+            printf 'no pull requests found for branch "feature"\n' >&2
+            exit 1
+        fi
+        ;;
     *) exit 1 ;;
 esac

@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use git_gui_core::{
-    BranchGroups, Commit, CommitFile, Comparison, Recovery, Repository, RepositoryInfo, StashEntry,
-    Status, SyncState,
+    BlameLine, BranchGroups, Commit, CommitFile, CommitMessage, Comparison, ConflictSides,
+    DiffOptions, GitHubCli, PullRequest, Recovery, Repository, RepositoryInfo, StashEntry, Status,
+    SyncState,
 };
 use tauri::State;
 
@@ -56,10 +57,11 @@ pub async fn get_diff(
     repo: String,
     file: String,
     is_staged: bool,
+    options: DiffOptions,
     state: State<'_, Repositories>,
 ) -> Result<String, String> {
     let entry = state.get(&repo)?;
-    blocking(move || entry.repository.diff(&file, is_staged)).await
+    blocking(move || entry.repository.diff_with(&file, is_staged, &options)).await
 }
 
 #[tauri::command]
@@ -77,10 +79,11 @@ pub async fn get_commit_diff(
     repo: String,
     commit: String,
     paths: Vec<String>,
+    options: DiffOptions,
     state: State<'_, Repositories>,
 ) -> Result<String, String> {
     let entry = state.get(&repo)?;
-    blocking(move || entry.repository.commit_diff(&commit, &paths)).await
+    blocking(move || entry.repository.commit_diff_with(&commit, &paths, &options)).await
 }
 
 #[tauri::command]
@@ -128,4 +131,42 @@ pub async fn get_stashes(
 ) -> Result<Vec<StashEntry>, String> {
     let entry = state.get(&repo)?;
     blocking(move || entry.repository.stashes()).await
+}
+
+#[tauri::command]
+pub async fn get_head_message(
+    repo: String,
+    state: State<'_, Repositories>,
+) -> Result<CommitMessage, String> {
+    let entry = state.get(&repo)?;
+    blocking(move || entry.repository.head_message()).await
+}
+
+#[tauri::command]
+pub async fn get_blame(
+    repo: String,
+    path: String,
+    state: State<'_, Repositories>,
+) -> Result<Vec<BlameLine>, String> {
+    let entry = state.get(&repo)?;
+    blocking(move || entry.repository.blame(&path)).await
+}
+
+#[tauri::command]
+pub async fn get_conflict_sides(
+    repo: String,
+    file: String,
+    state: State<'_, Repositories>,
+) -> Result<ConflictSides, String> {
+    let entry = state.get(&repo)?;
+    blocking(move || entry.repository.conflict_sides(&file)).await
+}
+
+#[tauri::command]
+pub async fn get_pull_request(
+    repo: String,
+    state: State<'_, Repositories>,
+) -> Result<Option<PullRequest>, String> {
+    let entry = state.get(&repo)?;
+    blocking(move || GitHubCli::default().pull_request(entry.repository.root())).await
 }

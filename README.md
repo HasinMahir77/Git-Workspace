@@ -16,7 +16,7 @@ Open **Git Workspace** in the app launcher. If your shell sets up tools for a re
 
 ## Workspace and settings
 
-Use the Repository, Branch, and sync controls in the top toolbar. Search your open repositories with **Ctrl+K**, open a local checkout with **Ctrl+O**, and open Settings with **Ctrl+,**. Theme, GitHub accounts, and Git environment diagnostics are in Settings.
+The File, Repository, and Branch menus sit above the toolbar and hold Refresh, Open in Terminal, Options, and the repository and branch actions. Use the repository, branch, sync, and pull request controls in the toolbar. Git Workspace fetches in the background every five minutes, so the ahead and behind counts stay current. When the branch has a pull request on github.com, the toolbar shows its number, state, and check status (this needs GitHub CLI). Otherwise it offers **Create pull request**, which opens GitHub's compare page. Search your open repositories with **Ctrl+K**, open a local checkout with **Ctrl+O**, and open Settings with **Ctrl+,**. Theme, GitHub accounts, and Git environment diagnostics are in Settings.
 
 ## Compare, merge, and recovery
 
@@ -30,7 +30,7 @@ Right-click works like GitHub Desktop. On the current repository (or any reposit
 
 ## Stash and hunks
 
-**Stash changes…** in Changes stashes work, with an explicit **Include untracked files** option. **Restore** applies a stash with its staging and keeps it until you drop it. To stage or unstage part of a tracked text file, click a changed line's line numbers, or drag down them to take several lines of the same hunk at once. Click the handle beside a change, or the gutter of its `@@` header row, to take the whole hunk. Blue line numbers mark staged changes. Untracked, binary, renamed, and conflicted files use the whole-file checkboxes. The gear in the diff header switches between the unified and split diff.
+**Stash changes…** in Changes stashes work, with an explicit **Include untracked files** option. **Restore** applies a stash with its staging and keeps it until you drop it. To stage or unstage part of a tracked text file, click a changed line's line numbers, or drag down them to take several lines of the same hunk at once. Click the handle beside a change, or the gutter of its `@@` header row, to take the whole hunk. Blue line numbers mark staged changes. Untracked, binary, renamed, and conflicted files use the whole-file checkboxes. The gear in the diff header switches between the unified and split diff, hides whitespace changes, and shows more unchanged lines around each change, up to the whole file. Staging is off while those settings change the diff. Diffs show syntax colours for common languages, and the words that changed within a line are shaded.
 
 ## Sidebars
 
@@ -71,3 +71,9 @@ python3 tests/native_smoke.py src-tauri/target/release/git-workspace
 ```
 
 For headless runs, start the driver inside an Xvfb session. Run the app with an isolated `HOME` and `XDG_*` directories, because it reopens your saved repositories and the test expects a fresh profile. The smoke test checks the application through the real WebKit window and asserts the resulting Git state. It covers compare, cherry-pick, remote branch checkout, hunk staging, stash (including a conflicting restore), rebase abort, merge conflict recovery, skipping an empty cherry-pick, the context menus, and the 850×580, 1024×768, and 1366×768 layouts. Optional hook qualification takes a disposable Zenurture checkout with dependencies installed and a local bare remote.
+
+## Commits and history
+
+After you commit, **Undo** in Changes takes the commit back and restores its message. It keeps the changes staged. **Amend last commit** replaces the previous commit with the staged changes and a new message. When the recent history follows the `type(TICKET-123): summary` format, the summary box suggests the ticket from the branch name and warns before a commit-msg hook would reject the message. Filter the changed files with the box above the list. Right-click a tracked file and choose **View blame** to see who last changed each line.
+
+History shows relative dates (hover for the exact time). Drag a commit onto an older commit to squash them, or onto a branch in the strip that appears to cherry-pick it there. Both ask first, and need a clean working tree. In the branch menu, hover a local branch to rename or delete it. In a merge or rebase conflict, **Resolve…** in the recovery bar opens a view with the ours, theirs, and result text side by side.

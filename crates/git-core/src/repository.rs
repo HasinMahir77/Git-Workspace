@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    ChangedFile, Execution, Status,
+    ChangedFile, DiffOptions, Execution, Status,
     git::{git, git_allow_one, parse_status, stream_git, text},
 };
 
@@ -122,6 +122,15 @@ impl Repository {
     }
 
     pub fn diff(&self, id: &str, is_staged: bool) -> Result<String, String> {
+        self.diff_with(id, is_staged, &DiffOptions::default())
+    }
+
+    pub fn diff_with(
+        &self,
+        id: &str,
+        is_staged: bool,
+        options: &DiffOptions,
+    ) -> Result<String, String> {
         let (_, file) = self.changed_file(id)?;
         let output = if !is_staged && file.unstaged == "?" {
             let mut path = OsString::from("./");
@@ -133,10 +142,14 @@ impl Repository {
                     "--no-index".into(),
                     "--no-ext-diff".into(),
                     "--no-textconv".into(),
+                ]
+                .into_iter()
+                .chain(options.arguments().into_iter().map(OsString::from))
+                .chain([
                     "--".into(),
                     "/dev/null".into(),
                     path,
-                ],
+                ]),
             )?
         } else {
             let mut arguments = vec![
@@ -146,6 +159,8 @@ impl Repository {
                 "--no-textconv",
                 "--find-renames",
             ];
+            let option_arguments = options.arguments();
+            arguments.extend(option_arguments.iter().map(String::as_str));
             if is_staged {
                 arguments.push("--cached");
             }

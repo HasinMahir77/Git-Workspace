@@ -1,11 +1,13 @@
 import { GitMerge, SquareTerminal } from "lucide-react";
 import { useState } from "react";
+import { ConflictDialog } from "./ConflictDialog";
 import { RECOVERY_COPY } from "../git/recovery.constants";
 import { canContinueRecovery } from "../git/recovery.helpers";
 import type { RecoveryBarProps } from "./recovery-bar.types";
 
-export function RecoveryBar({ recovery, isBusy, run, openTerminal }: RecoveryBarProps) {
+export function RecoveryBar({ repo, recovery, isBusy, run, openTerminal }: RecoveryBarProps) {
   const [isConfirmingAbort, setIsConfirmingAbort] = useState(false);
+  const [resolving, setResolving] = useState<{ id: string; path: string } | null>(null);
   const copy = RECOVERY_COPY[recovery.kind];
   const unmerged = recovery.unmerged;
   return (
@@ -31,18 +33,20 @@ export function RecoveryBar({ recovery, isBusy, run, openTerminal }: RecoveryBar
       {copy.abortNote && <p className="muted recovery-note">{copy.abortNote}</p>}
       {unmerged.length > 0 && (
         <>
-          <p className="muted recovery-note">Edit each file to remove the conflict markers, then mark it resolved. Marking a file resolved stages your edits.</p>
+          <p className="muted recovery-note">Choose a side or edit the result in Resolve, or fix the file elsewhere and mark it resolved. Marking a file resolved stages your edits.</p>
           <ul className="recovery-files">
             {unmerged.map((file) => (
               <li key={file.id} className="row">
                 <code className="truncate" title={file.path}>{file.path}</code>
                 <span className="spacer" />
+                <button className="button" disabled={isBusy} onClick={() => setResolving({ id: file.id, path: file.path })}>Resolve…</button>
                 <button className="button" disabled={isBusy} onClick={() => void run({ type: "stage", id: file.id }, "Mark resolved")}>Mark resolved</button>
               </li>
             ))}
           </ul>
         </>
       )}
+      {resolving && <ConflictDialog repo={repo} fileId={resolving.id} path={resolving.path} run={run} close={() => setResolving(null)} />}
     </section>
   );
 }

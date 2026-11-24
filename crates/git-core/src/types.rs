@@ -125,6 +125,27 @@ pub enum Operation {
         url: String,
     },
     Pull,
+    Amend {
+        summary: String,
+        body: String,
+    },
+    UndoCommit,
+    DeleteBranch {
+        branch: String,
+        should_force: bool,
+    },
+    RenameBranch {
+        from: String,
+        to: String,
+    },
+    Squash {
+        commit: String,
+        onto: String,
+    },
+    ResolveConflict {
+        id: String,
+        content: String,
+    },
     Merge {
         other: String,
         expected_id: String,
@@ -238,4 +259,70 @@ impl IntegrationKind {
 pub struct StashEntry {
     pub id: String,
     pub message: String,
+}
+
+#[derive(Debug, Default, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffOptions {
+    pub should_ignore_whitespace: bool,
+    pub context_lines: Option<u32>,
+}
+
+impl DiffOptions {
+    /// Git flags for these options. Staging uses the default diff, so hunks stay stable.
+    pub(crate) fn arguments(&self) -> Vec<String> {
+        let mut arguments = Vec::new();
+        if self.should_ignore_whitespace {
+            arguments.push("-w".to_owned());
+        }
+        if let Some(lines) = self.context_lines {
+            arguments.push(format!("-U{lines}"));
+        }
+        arguments
+    }
+}
+
+#[derive(Debug, Serialize, TS)]
+pub struct CommitMessage {
+    pub summary: String,
+    pub body: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct BlameLine {
+    pub line: u32,
+    pub commit: String,
+    pub author: String,
+    pub authored_at: u32,
+    pub summary: String,
+    pub text: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+pub struct ConflictSides {
+    pub base: Option<String>,
+    pub ours: Option<String>,
+    pub theirs: Option<String>,
+    pub working: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum CheckSummary {
+    None,
+    Pending,
+    Failing,
+    Passing,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct PullRequest {
+    pub number: u32,
+    pub title: String,
+    pub state: String,
+    pub url: String,
+    pub is_draft: bool,
+    pub checks: CheckSummary,
 }

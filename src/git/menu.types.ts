@@ -24,6 +24,7 @@ export type ChangesMenuActions = {
   showInFiles: (path: string) => void;
   openInEditor: (path: string) => void;
   openDefault: (path: string) => void;
+  blame: (path: string) => void;
 };
 
 export type ChangesListMenuActions = {

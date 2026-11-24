@@ -1,10 +1,11 @@
 import { GearIcon, TriangleDownIcon } from "@primer/octicons-react";
 import { useContext, useEffect, useRef, useState } from "react";
 import { DiffViewContext } from "../git/DiffViewContext";
-import { DIFF_DISPLAY_OPTIONS } from "../git/diff-view.constants";
+import { CONTEXT_CHOICES, DIFF_DISPLAY_OPTIONS } from "../git/diff-view.constants";
+import { isDefaultDiffOptions } from "../git/diff-view.helpers";
 
 export function DiffOptions() {
-  const { diffView, changeDiffView } = useContext(DiffViewContext);
+  const { diffView, changeDiffView, options, changeOptions } = useContext(DiffViewContext);
   const [isOpen, setIsOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -42,6 +43,19 @@ export function DiffOptions() {
               </label>
             ))}
           </fieldset>
+          <label className="diff-option-check">
+            <input type="checkbox" checked={options.shouldIgnoreWhitespace}
+              onChange={(event) => changeOptions({ ...options, shouldIgnoreWhitespace: event.target.checked })} /> Hide whitespace changes
+          </label>
+          <fieldset>
+            <legend>Unchanged lines around a change</legend>
+            {CONTEXT_CHOICES.map(({ value, label }) => (
+              <label key={label}>
+                <input type="radio" name="diff-context" checked={options.contextLines === value} onChange={() => changeOptions({ ...options, contextLines: value })} /> {label}
+              </label>
+            ))}
+          </fieldset>
+          {isDefaultDiffOptions(options) ? null : <p className="muted diff-option-note">Staging is off while these settings change the diff.</p>}
         </div>
       ) : null}
     </div>

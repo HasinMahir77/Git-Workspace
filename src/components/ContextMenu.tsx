@@ -47,6 +47,7 @@ function MenuList({ items, close, isSubmenu = false }: { items: MenuItem[]; clos
               item.action?.();
             }}>
             <span className="truncate">{item.label}</span>
+            {item.shortcut && <span className="context-shortcut">{item.shortcut}</span>}
             {item.submenu && <ChevronRight size={13} aria-hidden="true" />}
           </button>
           {item.submenu && openIndex === index && <MenuList items={item.submenu} close={close} isSubmenu />}

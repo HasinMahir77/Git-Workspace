@@ -1,4 +1,4 @@
-import { GearIcon, GitBranchIcon, PlusIcon, RedoIcon, RepoIcon, TerminalIcon } from "@primer/octicons-react";
+import { GitBranchIcon, PlusIcon, RepoIcon } from "@primer/octicons-react";
 import {
   AlertCircle, ChevronDown, Download, FileDiff, FolderGit2, FolderOpen, FolderPlus, GitCommitHorizontal, LoaderCircle, SquareTerminal, X,
 } from "lucide-react";
@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AccountAvatar } from "./accounts/AccountAvatar";
 import { useGitHubAccounts } from "./accounts/useGitHubAccounts";
 import { BranchMenu } from "./components/BranchMenu";
+import { MenuBar } from "./components/MenuBar";
+import { PullRequestButton } from "./components/PullRequestButton";
 import { ComparePanel } from "./components/ComparePanel";
 import { RecoveryBar } from "./components/RecoveryBar";
 import { SyncButton } from "./components/SyncButton";
@@ -16,9 +18,13 @@ import { RepositoryPicker } from "./components/RepositoryPicker";
 import { CHANGES, HISTORY } from "./components/sidebar.constants";
 import { useSidebar } from "./components/useSidebar";
 import { WorkspaceDialog } from "./components/WorkspaceDialog";
+import { appMenus } from "./git/app-menu.helpers";
 import { git } from "./git/client";
+import { useExternalEditor } from "./git/useExternalEditor";
 import { DiffViewContext } from "./git/DiffViewContext";
-import { DIFF_VIEW_KEY } from "./git/diff-view.constants";
+import { DIFF_OPTIONS_KEY, DIFF_VIEW_KEY } from "./git/diff-view.constants";
+import { readDiffOptions } from "./git/diff-view.helpers";
+import type { DiffOptions } from "./git/bindings";
 import type { DiffView } from "./git/diff-view.types";
 import { EMPTY_DRAFT, THEME_KEY } from "./git/workspace.constants";
 import { syncAction } from "./git/sync.helpers";
@@ -46,8 +52,8 @@ export function App() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [theme, setTheme] = useState(() => getTheme(localStorage.getItem(THEME_KEY)));
   const [diffView, setDiffView] = useState<DiffView>(() => localStorage.getItem(DIFF_VIEW_KEY) === "split" ? "split" : "unified");
+  const [diffOptions, setDiffOptions] = useState<DiffOptions>(() => readDiffOptions(localStorage.getItem(DIFF_OPTIONS_KEY)));
   const outputBox = useRef<HTMLPreElement>(null);
-  const settingsButton = useRef<HTMLButtonElement>(null);
   const repo = workspace.selected;
   const recovery = useRecovery(repo?.id, workspace.revision);
   const isPaused = recovery?.kind != null;
@@ -56,6 +62,7 @@ export function App() {
   const isBusy = Boolean(workspace.operation);
   const action = status && sync ? syncAction(status, sync) : null;
   const isRestoring = !workspace.hasRestored;
+  const editorLabel = useExternalEditor();
   const repositoryMenu = useRepositoryMenu(workspace.entries, workspace.remove, workspace.setError);
 
   useEffect(() => {
@@ -64,7 +71,8 @@ export function App() {
   }, [theme]);
 
   useEffect(() => { localStorage.setItem(DIFF_VIEW_KEY, diffView); }, [diffView]);
-  const diffViewSetting = useMemo(() => ({ diffView, changeDiffView: setDiffView }), [diffView]);
+  useEffect(() => { localStorage.setItem(DIFF_OPTIONS_KEY, JSON.stringify(diffOptions)); }, [diffOptions]);
+  const diffViewSetting = useMemo(() => ({ diffView, changeDiffView: setDiffView, options: diffOptions, changeOptions: setDiffOptions }), [diffView, diffOptions]);
 
   useEffect(() => {
     const output = outputBox.current;
@@ -96,7 +104,7 @@ export function App() {
 
   function closeSettings() {
     setSettings(null);
-    requestAnimationFrame(() => settingsButton.current?.focus());
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(".menu-bar-item")?.focus());
   }
 
   function closeBranchMenu(shouldFocus = false) {
@@ -138,6 +146,18 @@ export function App() {
     else showDialog(action.kind);
   }
 
+  const reportFailure = (reason: unknown) => workspace.setError(messageOf(reason));
+  const menus = appMenus({
+    hasRepository: Boolean(repo), isBusy, hasGitHubRemote: repo ? repositoryMenu.hasGitHubRemote(repo.id) : false, editorLabel,
+    syncTitle: action?.title ?? null,
+    newRepository: () => showDialog("init"), addRepository: () => showDialog("open"), cloneRepository: () => showDialog("clone"),
+    openSettings: () => setSettings("appearance"), openAccounts: () => setSettings("accounts"), switchRepository: () => setIsPickerOpen(true),
+    refresh: workspace.refresh, openTerminal,
+    showInFiles: () => { if (repo) void git.reveal(repo.id).catch(reportFailure); },
+    openInEditor: () => { if (repo) void git.openInEditor(repo.id).catch(reportFailure); },
+    viewOnGitHub: () => { if (repo) void git.openOnGitHub(repo.id).catch(reportFailure); },
+    openBranches: () => setIsBranchOpen(true), compareBranches: () => setIsComparing(true), sync: activateSync,
+  });
   const hasBranch = Boolean(status?.branch);
   const branch = status?.branch ?? (status ? "Detached HEAD" : "Reading branch…");
   const viewTabs = (
@@ -155,6 +175,7 @@ export function App() {
   return (
     <DiffViewContext.Provider value={diffViewSetting}><div className="app-frame">
       <div className="workspace-page" hidden={settings !== null}>
+        <MenuBar menus={menus} isDisabled={isRestoring} />
         <header className="workspace-bar" aria-label="Workspace toolbar" style={sidebar.layout}>
           <h1 className={`repository-heading${sidebar.isCollapsed ? " is-folded" : ""}`}>
             <ToolbarButton className="repository-control" layout="subtitle" isDropdown icon={<RepoIcon />}
@@ -184,23 +205,17 @@ export function App() {
                   <ToolbarButton className="sync-control" icon={<PlusIcon />} text="Add remote" description="No remote configured"
                     disabled={isBusy} onClick={() => showDialog("addRemote")} />
                 </div> : null}
+                <PullRequestButton repo={repo.id} branch={status?.branch ?? null} hasUpstream={sync?.hasConfiguredUpstream ?? false}
+                  hasGitHubRemote={repositoryMenu.hasGitHubRemote(repo.id)} onError={workspace.setError} />
               </>
             )}
             <span className="spacer" />
-            {repo ? (
-              <>
-                <button type="button" className="toolbar-icon-button" disabled={isBusy} onClick={workspace.refresh} title="Refresh working tree" aria-label="Refresh working tree"><RedoIcon /></button>
-                <button type="button" className="toolbar-icon-button" title="Open in Terminal" aria-label="Open in Terminal" onClick={openTerminal}><TerminalIcon /></button>
-              </>
-            ) : null}
             <button type="button" className="toolbar-icon-button account-trigger" aria-label="Manage GitHub accounts"
               title={accounts.active?.login ? `GitHub account: ${accounts.active.login}` : "GitHub accounts"}
               onClick={() => setSettings("accounts")}>
               <AccountAvatar login={accounts.active?.login} />
               {accounts.active?.login ? <span className="sr-only">{accounts.active.login}</span> : null}
             </button>
-            <button type="button" className="toolbar-icon-button" ref={settingsButton} aria-label="Settings" title="Settings (Ctrl+,)"
-              onClick={() => setSettings("appearance")}><GearIcon /></button>
           </div>
         </header>
         <div className="shell">
@@ -225,7 +240,7 @@ export function App() {
               </div>
             ) : (
               <>
-                {recovery?.kind && <RecoveryBar recovery={{ ...recovery, kind: recovery.kind }} isBusy={isBusy} run={workspace.mutate} openTerminal={openTerminal} />}
+                {recovery?.kind && <RecoveryBar repo={repo.id} recovery={{ ...recovery, kind: recovery.kind }} isBusy={isBusy} run={workspace.mutate} openTerminal={openTerminal} />}
                 {isComparing && <ComparePanel key={repo.id} repo={repo.id} current={status?.branch ?? null}
                   upstream={status?.upstream ?? null} revision={workspace.revision}
                   isBusy={isBusy} isDirty={Boolean(status?.files.length)} isPaused={isPaused} run={workspace.mutate}

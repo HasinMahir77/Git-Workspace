@@ -35,6 +35,7 @@ export function changesMenu(actions: ChangesMenuActions): MenuItem[] {
   if (!file) return [];
   const paths = files.map((entry) => entry.path);
   const isSingle = files.length === 1;
+  const isTracked = isSingle && file.unstaged !== "?" && file.staged !== "A" && !file.hasConflict;
   const isDeleted = isSingle && (file.unstaged === "D" || file.staged === "D");
   const extensions = [...new Set(paths.map(extensionOf).filter(Boolean))].slice(0, MAX_EXTENSION_ITEMS);
   const folders = file.path.split("/").slice(0, -1);
@@ -85,6 +86,8 @@ export function changesMenu(actions: ChangesMenuActions): MenuItem[] {
     { label: "Show in your File Manager", action: () => actions.showInFiles(file.path), isEnabled: !isDeleted },
     { label: actions.editorLabel ? `Open in ${actions.editorLabel}` : OPEN_IN_EDITOR, action: () => actions.openInEditor(file.path), isEnabled: !isDeleted && actions.editorLabel !== null },
     { label: "Open with default program", action: () => actions.openDefault(file.path), isEnabled: !isDeleted && isSingle },
+    SEPARATOR,
+    { label: "View blame", action: () => actions.blame(file.path), isEnabled: isSingle && isTracked },
   );
   return items;
 }

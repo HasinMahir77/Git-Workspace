@@ -58,6 +58,10 @@ class Desktop:
         eventually(lambda: self.send("GET", f"/element/{node}/enabled"))
         self.send("POST", f"/element/{node}/click", {})
 
+    def choose(self, menu, item):
+        self.click(f"//nav[@aria-label='Application menu']//button[normalize-space()={json.dumps(menu)}]", "xpath")
+        self.click(f"//div[@role='menu']//button[@role='menuitem'][starts-with(normalize-space(), {json.dumps(item, ensure_ascii=False)})]", "xpath")
+
     def button(self, text):
         self.click(f"//button[normalize-space()={json.dumps(text, ensure_ascii=False)}]", "xpath")
 
@@ -190,7 +194,7 @@ def qualify_sidebars(desktop):
 
 
 def qualify_settings(desktop, evidence):
-    desktop.click("button[aria-label='Settings']")
+    desktop.choose("File", "Options")
     desktop.contains(".settings-bar h1", "Settings")
     assert desktop.bounds(".workspace-bar")["height"] == 0
     desktop.click(".theme-card:has(input[value='dark'])")
@@ -287,7 +291,7 @@ def run(desktop, root, evidence):
     assert (repo / "notes.txt").read_text() == "Remote update\n"
 
     (repo / "notes.txt").write_text("Pushed desktop update\n")
-    desktop.click("button[aria-label='Refresh working tree']")
+    desktop.choose("Repository", "Refresh")
     desktop.click("input[aria-label='Stage notes.txt']")
     desktop.locate("input[aria-label='Unstage notes.txt']")
     desktop.enter("input[name='commit-summary']", "fix(DESK-101): push update")
@@ -331,10 +335,10 @@ def qualify_git_credentials(desktop, root, evidence):
         desktop.button("Add remote")
         desktop.enter("dialog[open] label:last-of-type input", f"{origin}/{remote.name}")
         desktop.click("dialog[open] button.primary")
-        desktop.click("button[aria-label='Refresh working tree']")
+        desktop.choose("Repository", "Refresh")
         desktop.contains(".branch-control", "main")
         (repo / "notes.txt").write_text("First commit\n")
-        desktop.click("button[aria-label='Refresh working tree']")
+        desktop.choose("Repository", "Refresh")
         desktop.click("input[aria-label='Stage notes.txt']")
         desktop.locate("input[aria-label='Unstage notes.txt']")
         desktop.enter("input[name='commit-summary']", "Add notes")
@@ -363,7 +367,7 @@ def qualify_git_credentials(desktop, root, evidence):
 
         (repo / "notes.txt").write_text("Updated fork\n")
         git(repo, "commit", "-am", "Update notes")
-        desktop.click("button[aria-label='Refresh working tree']")
+        desktop.choose("Repository", "Refresh")
         desktop.contains(".branch-control", "upstream/main · diverged")
         desktop.click(".sync-control[aria-label='Push']")
         desktop.contains("dialog[open]", "origin/main")
@@ -381,7 +385,7 @@ def qualify_compare(desktop, repo, evidence):
     git(repo, "add", "target.txt")
     git(repo, "commit", "-m", "fix(DESK-101): target work")
     git(repo, "switch", "main")
-    desktop.click("button[aria-label='Refresh working tree']")
+    desktop.choose("Repository", "Refresh")
     desktop.enter("input[name='commit-summary']", "draft survives compare")
 
     desktop.click("button[aria-label='Branches']")
@@ -409,7 +413,7 @@ def compare_with(desktop, branch):
 
 
 def refresh(desktop):
-    desktop.click("button[aria-label='Refresh working tree']")
+    desktop.choose("Repository", "Refresh")
 
 
 def commit(repo, message):

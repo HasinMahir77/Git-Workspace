@@ -1,7 +1,8 @@
 use git_gui_core::{
-    BranchGroups, ChangedFile, Commit, CommitFile, Comparison, GitHubAccount, GitHubAccounts,
-    IntegrationKind, Operation, PushTarget, Recovery, RepositoryInfo, StashEntry, Status,
-    SyncState, ToolVersion,
+    BlameLine, BranchGroups, ChangedFile, CheckSummary, Commit, CommitFile, CommitMessage,
+    Comparison, ConflictSides, DiffOptions, GitHubAccount, GitHubAccounts, IntegrationKind,
+    Operation, PullRequest, PushTarget, Recovery, RepositoryInfo, StashEntry, Status, SyncState,
+    ToolVersion,
 };
 use ts_rs::{Config, TS};
 
@@ -25,6 +26,12 @@ fn main() {
         Recovery::decl(&config),
         StashEntry::decl(&config),
         ToolVersion::decl(&config),
+        DiffOptions::decl(&config),
+        CommitMessage::decl(&config),
+        BlameLine::decl(&config),
+        ConflictSides::decl(&config),
+        CheckSummary::decl(&config),
+        PullRequest::decl(&config),
     ] {
         println!("export {declaration}");
     }

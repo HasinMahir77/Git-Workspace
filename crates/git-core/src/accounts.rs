@@ -5,7 +5,9 @@ use std::{
     process::{Command, Stdio},
 };
 
-use crate::{Execution, GitHubAccount, GitHubAccounts, git::stream_command};
+use crate::{
+    CheckSummary, Execution, GitHubAccount, GitHubAccounts, PullRequest, git::stream_command,
+};
 
 const HOST: &str = "github.com";
 
@@ -65,6 +67,34 @@ impl GitHubCli {
             accounts,
             has_environment_token,
         })
+    }
+
+    /// The pull request for the branch checked out in `directory`, if there is one.
+    pub fn pull_request(&self, directory: &std::path::Path) -> Result<Option<PullRequest>, String> {
+        let output = self
+            .command()
+            .current_dir(directory)
+            .args(["pr", "view", "--json", "number,title,state,url,isDraft,statusCheckRollup"])
+            .output()
+            .map_err(|_| "GitHub CLI (gh) is unavailable.")?;
+        if !output.status.success() {
+            let message = String::from_utf8_lossy(&output.stderr);
+            return if message.contains("no pull requests found") {
+                Ok(None)
+            } else {
+                Err("Could not read the pull request. Check that GitHub CLI is signed in.".into())
+            };
+        }
+        let raw: CliPullRequest = serde_json::from_slice(&output.stdout)
+            .map_err(|_| "Could not read the pull request from GitHub CLI.")?;
+        Ok(Some(PullRequest {
+            number: raw.number,
+            title: raw.title,
+            state: raw.state,
+            url: raw.url,
+            is_draft: raw.is_draft,
+            checks: summarize_checks(&raw.status_check_rollup),
+        }))
     }
 
     pub fn switch_account(&self, login: &str) -> Result<(), String> {
@@ -144,5 +174,50 @@ impl GitHubCli {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         command
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CliPullRequest {
+    number: u32,
+    title: String,
+    state: String,
+    url: String,
+    is_draft: bool,
+    #[serde(default)]
+    status_check_rollup: Vec<CliCheck>,
+}
+
+#[derive(Deserialize)]
+struct CliCheck {
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    conclusion: String,
+    #[serde(default)]
+    state: String,
+}
+
+fn summarize_checks(checks: &[CliCheck]) -> CheckSummary {
+    const FAILED: [&str; 5] = ["FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE"];
+    if checks.is_empty() {
+        return CheckSummary::None;
+    }
+    if checks
+        .iter()
+        .any(|check| FAILED.contains(&check.conclusion.as_str()) || FAILED.contains(&check.state.as_str()))
+    {
+        return CheckSummary::Failing;
+    }
+    let is_pending = |check: &CliCheck| {
+        (!check.status.is_empty() && check.status != "COMPLETED")
+            || check.state == "PENDING"
+            || check.state == "EXPECTED"
+    };
+    if checks.iter().any(is_pending) {
+        CheckSummary::Pending
+    } else {
+        CheckSummary::Passing
     }
 }

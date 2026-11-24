@@ -161,6 +161,21 @@ pub(crate) fn stream_git_without_editor(
     stream_command(child_command, "Git", execution)
 }
 
+/// Runs an interactive rebase whose todo list is replaced by the file at `todo`.
+pub(crate) fn stream_git_with_todo(
+    directory: &Path,
+    args: &[&str],
+    todo: &Path,
+    execution: &Execution<'_>,
+) -> Result<(), String> {
+    let mut child_command = command(directory);
+    child_command
+        .args(args)
+        .env("GIT_EDITOR", "true")
+        .env("GIT_SEQUENCE_EDITOR", format!("cp '{}'", todo.display()));
+    stream_command(child_command, "Git", execution)
+}
+
 pub(crate) fn stream_command(
     mut command: Command,
     program: &str,
