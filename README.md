@@ -77,3 +77,7 @@ For headless runs, start the driver inside an Xvfb session. Run the app with an 
 After you commit, **Undo** in Changes takes the commit back and restores its message. It keeps the changes staged. **Amend last commit** replaces the previous commit with the staged changes and a new message. When the recent history follows the `type(TICKET-123): summary` format, the summary box suggests the ticket from the branch name and warns before a commit-msg hook would reject the message. Filter the changed files with the box above the list. Right-click a tracked file and choose **View blame** to see who last changed each line.
 
 History shows relative dates (hover for the exact time). Drag a commit onto an older commit to squash them, or onto a branch in the strip that appears to cherry-pick it there. Both ask first, and need a clean working tree. In the branch menu, hover a local branch to rename or delete it. In a merge or rebase conflict, **Resolve…** in the recovery bar opens a view with the ours, theirs, and result text side by side.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
