@@ -21,23 +21,10 @@ jobs:
             os: ubuntu-22.04
             bundles: deb,appimage
             args: ""
-          - name: Windows x64
-            os: windows-latest
-            bundles: nsis
-            args: --target x86_64-pc-windows-msvc
-          - name: Windows x86
-            os: windows-latest
-            bundles: nsis
-            args: --target i686-pc-windows-msvc
-          - name: macOS arm64
-            os: macos-latest
-            bundles: dmg
-            args: --target aarch64-apple-darwin
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Ubuntu dependencies
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -50,8 +37,6 @@ jobs:
           cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin' || (matrix.name == 'Windows x86' && 'i686-pc-windows-msvc' || (matrix.name == 'Windows x64' && 'x86_64-pc-windows-msvc' || '')) }}
 
       - uses: swatinem/rust-cache@v2
         with:
