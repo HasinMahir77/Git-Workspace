@@ -4,7 +4,7 @@ A desktop Git client for Ubuntu that runs your installed Git, so it uses your ex
 
 ## Download
 
-Get the latest `.deb` or `.AppImage` (Ubuntu x64) from the [Releases page](https://github.com/HasinMahir77/Github-Workspace/releases/latest). Pushing a tag like `v0.5.0` builds and publishes them.
+Get the latest `.deb` or `.AppImage` (Ubuntu x64) from the [Releases page](https://github.com/HasinMahir77/Git-Workspace/releases/latest). Pushing a tag like `v0.5.0` builds and publishes them.
 
 ## Install on Ubuntu
 
