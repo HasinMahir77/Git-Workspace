@@ -4,6 +4,10 @@ An Ubuntu desktop client that runs the installed Git executable. It uses the Git
 
 Create a local repository, open a checkout, or clone a repository. Review staged and unstaged changes, commit, browse history, switch branches, and sync with configured remotes. For a repository without a remote, choose **Add remote** in the toolbar. Pull uses fast-forward only. Push shows the destination and updates one branch, including when Git is configured to push to a fork and pull from upstream. Git and hook output appears in the operation panel. Use **Open in Terminal** when Git needs a terminal prompt or a workflow such as rebasing a diverged branch.
 
+## Download
+
+Get the latest build from the [Releases page](https://github.com/HasinMahir77/Github-Workspace/releases/latest): `.deb` and `.AppImage` for Ubuntu x64, `.exe` installers for Windows x64 and x86, and a `.dmg` for macOS on Apple silicon. Pushing a tag like `v0.5.0` builds and publishes them.
+
 ## Install on Ubuntu
 
 Install the generated `.deb` with Ubuntu's package installer or run:

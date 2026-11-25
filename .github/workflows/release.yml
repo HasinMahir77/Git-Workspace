@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu x64
+            os: ubuntu-22.04
+            bundles: deb,appimage
+            args: ""
+          - name: Windows x64
+            os: windows-latest
+            bundles: nsis
+            args: --target x86_64-pc-windows-msvc
+          - name: Windows x86
+            os: windows-latest
+            bundles: nsis
+            args: --target i686-pc-windows-msvc
+          - name: macOS arm64
+            os: macos-latest
+            bundles: dmg
+            args: --target aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ubuntu dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin' || (matrix.name == 'Windows x86' && 'i686-pc-windows-msvc' || (matrix.name == 'Windows x64' && 'x86_64-pc-windows-msvc' || '')) }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('v__VERSION__') }}
+          releaseName: Git Workspace v__VERSION__
+          releaseBody: See the assets below to download Git Workspace for your platform.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }} --bundles ${{ matrix.bundles }}
